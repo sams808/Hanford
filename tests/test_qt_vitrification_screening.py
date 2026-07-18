@@ -46,6 +46,22 @@ class TestScreeningTab:
         _reset_weight_spins(tab.weight_spins, vsci.SCREENING_WEIGHT_DEFAULTS)
         assert tab.weight_spins["glass_former_weight"].value() == vsci.SCREENING_WEIGHT_DEFAULTS["glass_former_weight"]
 
+    def test_edited_weight_persists_to_a_freshly_constructed_tab(self, qtbot):
+        tab_a = ScreeningTab(_window(qtbot))
+        qtbot.addWidget(tab_a)
+        tab_a.weight_spins["glass_former_weight"].setValue(12.5)
+
+        tab_b = ScreeningTab(_window(qtbot))
+        qtbot.addWidget(tab_b)
+        assert tab_b.weight_spins["glass_former_weight"].value() == 12.5
+
+        # Reset must persist the default too, not just the widget value.
+        from qt_vitrification_screening import _reset_weight_spins
+        _reset_weight_spins(tab_a.weight_spins, vsci.SCREENING_WEIGHT_DEFAULTS)
+        tab_c = ScreeningTab(_window(qtbot))
+        qtbot.addWidget(tab_c)
+        assert tab_c.weight_spins["glass_former_weight"].value() == vsci.SCREENING_WEIGHT_DEFAULTS["glass_former_weight"]
+
     def test_custom_weight_changes_score(self, qtbot, vitrification_dataset):
         tab = ScreeningTab(_window(qtbot))
         qtbot.addWidget(tab)
@@ -95,6 +111,19 @@ class TestScreeningTab:
         qtbot.wait(20)
         monkeypatch.setattr(tab.plot.figure, "savefig", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
         tab.export_tables()  # must not raise despite the plot PNG save failing
+
+
+class TestWeightPersistenceIsIndependentPerTab:
+    def test_screening_and_candidate_weights_do_not_collide(self, qtbot):
+        # Both dicts share the key "glass_former_weight" -- settings_prefix
+        # must keep them from clobbering each other in QSettings.
+        screening_tab = ScreeningTab(_window(qtbot))
+        qtbot.addWidget(screening_tab)
+        screening_tab.weight_spins["glass_former_weight"].setValue(777.0)
+
+        candidate_tab = CandidateSearchTab(_window(qtbot))
+        qtbot.addWidget(candidate_tab)
+        assert candidate_tab.weight_spins["glass_former_weight"].value() == vsci.CANDIDATE_WEIGHT_DEFAULTS["glass_former_weight"]
 
 
 class TestCandidateSearchTab:

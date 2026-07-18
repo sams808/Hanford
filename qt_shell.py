@@ -172,11 +172,15 @@ class EmberMainWindow(QMainWindow):
         self._start_load(lambda: self.dataset.load_local_default(use_cache=use_cache, refresh_cache=refresh_cache))
 
     def _browse_and_load(self) -> None:
+        from PySide6.QtCore import QSettings
+        settings = QSettings(APP_NAME, APP_NAME)
+        last_dir = settings.value("last_browse_dir", "", type=str)
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load CSV/Parquet", "", "Data files (*.csv *.tsv *.txt *.parquet *.pq);;All files (*.*)"
+            self, "Load CSV/Parquet", last_dir, "Data files (*.csv *.tsv *.txt *.parquet *.pq);;All files (*.*)"
         )
         if not path:
             return
+        settings.setValue("last_browse_dir", str(Path(path).resolve().parent))
         use_cache, refresh_cache = self.use_cache_check.isChecked(), self.refresh_cache_check.isChecked()
         self._start_load(lambda: self.dataset.load(path, use_cache=use_cache, refresh_cache=refresh_cache))
 

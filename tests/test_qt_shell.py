@@ -88,6 +88,37 @@ class TestDatasetLoadBroadcast:
         window._reload()  # must not raise; QMessageBox.information is neutralized by conftest
 
 
+class TestBrowseAndLoadRemembersLastDirectory:
+    def test_cancelled_dialog_does_nothing(self, window, monkeypatch):
+        import qt_shell
+        monkeypatch.setattr(qt_shell.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("", "")))
+        window._browse_and_load()
+        assert window.dataset.path is None
+
+    def test_successful_browse_saves_and_restores_last_directory(self, window, tmp_path, qtbot, monkeypatch):
+        import qt_shell
+        csv_path = tmp_path / "browsed.csv"
+        csv_path.write_text(
+            "WasteSiteId,Analyte,WastePhase,WasteType,Inventory,Units\n"
+            "241-A-101,137Cs,Liquid,T1,100.0,Ci\n"
+        )
+        seen_start_dirs = []
+
+        def fake_dialog(*args, **kwargs):
+            seen_start_dirs.append(args[2] if len(args) > 2 else kwargs.get("dir", ""))
+            return (str(csv_path), "")
+
+        monkeypatch.setattr(qt_shell.QFileDialog, "getOpenFileName", staticmethod(fake_dialog))
+        assert seen_start_dirs == []
+        window._browse_and_load()
+        qtbot.wait(50)
+        assert seen_start_dirs == [""]  # nothing saved yet on the first call
+
+        window._browse_and_load()
+        qtbot.wait(50)
+        assert seen_start_dirs[-1] == str(tmp_path.resolve())
+
+
 class TestDarkModeToggle:
     def test_toggling_does_not_raise(self, window, qtbot):
         window.dark_mode_action.setChecked(True)

@@ -144,6 +144,14 @@ def build_stylesheet(palette: dict = PALETTE) -> str:
         padding: 4px 6px;
         font-size: 13px;
     }}
+    QPlainTextEdit {{
+        background: {p['card']};
+        border: 1px solid {p['border']};
+        border-radius: 3px;
+        padding: 6px;
+        font-size: 12px;
+        font-family: Consolas, monospace;
+    }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
         border: 1px solid {p['accent']};
     }}

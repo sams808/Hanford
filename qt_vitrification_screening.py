@@ -5,7 +5,8 @@ VitrificationTab, split into three tabs to match the nav shell's other
 multi-tab domains (Correlations). The old app's hardcoded score weights
 are now QDoubleSpinBox controls (with "Reset to defaults") instead of
 buried constants -- old constants are vitrification_science's *_WEIGHT_DEFAULTS,
-used to seed every spin box.
+used to seed every spin box. Edited weights persist across restarts via
+QSettings (settings_prefix keeps the three tabs' weights independent).
 """
 from __future__ import annotations
 
@@ -27,7 +28,10 @@ from qt_widgets import DataFrameTableView, PlotWidget
 BASIS_OPTIONS = ["elemental", "oxide"]
 
 
-def _build_weight_spins(layout: QHBoxLayout, defaults: Dict[str, float]) -> Dict[str, QDoubleSpinBox]:
+def _build_weight_spins(layout: QHBoxLayout, defaults: Dict[str, float], settings_prefix: str) -> Dict[str, QDoubleSpinBox]:
+    from PySide6.QtCore import QSettings
+    from qt_help import APP_NAME
+    settings = QSettings(APP_NAME, APP_NAME)
     spins: Dict[str, QDoubleSpinBox] = {}
     for key, default in defaults.items():
         label = key.replace("_weight", "").replace("_", " ")
@@ -35,7 +39,9 @@ def _build_weight_spins(layout: QHBoxLayout, defaults: Dict[str, float]) -> Dict
         spin = QDoubleSpinBox()
         spin.setRange(-1000.0, 1000.0)
         spin.setDecimals(3)
-        spin.setValue(default)
+        settings_key = f"{settings_prefix}_{key}"
+        spin.setValue(settings.value(settings_key, default, type=float))
+        spin.valueChanged.connect(lambda value, k=settings_key: QSettings(APP_NAME, APP_NAME).setValue(k, value))
         spins[key] = spin
         layout.addWidget(spin)
     return spins
@@ -43,7 +49,7 @@ def _build_weight_spins(layout: QHBoxLayout, defaults: Dict[str, float]) -> Dict
 
 def _reset_weight_spins(spins: Dict[str, QDoubleSpinBox], defaults: Dict[str, float]) -> None:
     for key, spin in spins.items():
-        spin.setValue(defaults[key])
+        spin.setValue(defaults[key])  # also persists the default via the valueChanged connection above
 
 
 def _current_weights(spins: Dict[str, QDoubleSpinBox]) -> Dict[str, float]:
@@ -80,7 +86,7 @@ class ScreeningTab(QWidget):
         self.basis_combo = QComboBox()
         self.basis_combo.addItems(BASIS_OPTIONS)
         row1.addWidget(self.basis_combo)
-        self.weight_spins = _build_weight_spins(row1, vsci.SCREENING_WEIGHT_DEFAULTS)
+        self.weight_spins = _build_weight_spins(row1, vsci.SCREENING_WEIGHT_DEFAULTS, "screening")
         reset_btn = QPushButton("Reset to defaults")
         reset_btn.clicked.connect(lambda: _reset_weight_spins(self.weight_spins, vsci.SCREENING_WEIGHT_DEFAULTS))
         row1.addWidget(reset_btn)
@@ -210,7 +216,7 @@ class CandidateSearchTab(QWidget):
         root.addLayout(row2)
 
         row3 = QHBoxLayout()
-        self.weight_spins = _build_weight_spins(row3, vsci.CANDIDATE_WEIGHT_DEFAULTS)
+        self.weight_spins = _build_weight_spins(row3, vsci.CANDIDATE_WEIGHT_DEFAULTS, "candidate")
         reset_btn = QPushButton("Reset to defaults")
         reset_btn.clicked.connect(lambda: _reset_weight_spins(self.weight_spins, vsci.CANDIDATE_WEIGHT_DEFAULTS))
         row3.addWidget(reset_btn)
@@ -300,7 +306,7 @@ class BlendPartnersTab(QWidget):
         root.addLayout(row1)
 
         row2 = QHBoxLayout()
-        self.weight_spins = _build_weight_spins(row2, vsci.BLEND_WEIGHT_DEFAULTS)
+        self.weight_spins = _build_weight_spins(row2, vsci.BLEND_WEIGHT_DEFAULTS, "blend")
         reset_btn = QPushButton("Reset to defaults")
         reset_btn.clicked.connect(lambda: _reset_weight_spins(self.weight_spins, vsci.BLEND_WEIGHT_DEFAULTS))
         row2.addWidget(reset_btn)
