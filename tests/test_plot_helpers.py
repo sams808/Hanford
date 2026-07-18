@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -28,8 +29,11 @@ class _FakeAx:
     def clear(self):
         self.cleared = True
 
-    def barh(self, labels, values, color=None):
+    def barh(self, labels, values, color=None, **kwargs):
         self.barh_calls.append((list(labels), list(values), color))
+
+    def axvline(self, *a, **k): pass
+    def set_xlim(self, *a, **k): pass
 
     def scatter(self, x, y, **kwargs):
         self.scatter_calls.append((list(x), list(y), kwargs))
@@ -143,6 +147,140 @@ class TestPlotBarh:
         df = pd.DataFrame({"Element": ["Na"], "TotalInventory": [500.0]})
         ph.plot_barh(panel, df, "Element", "TotalInventory", "t", "x", log_x=True)
         assert panel.canvas.draw_idle_called
+
+
+class TestPlotCorrelationScan:
+    def test_missing_columns_shows_message(self):
+        panel = FakePanel()
+        ph.plot_correlation_scan(panel, pd.DataFrame({"x": [1]}), "Cs")
+        assert panel.messages == ["No correlation scan data"]
+
+    def test_all_nan_correlation_shows_message(self):
+        panel = FakePanel()
+        df = pd.DataFrame({"PartnerElement": ["Sr"], "Correlation_r": [float("nan")], "AbsCorrelation": [float("nan")]})
+        ph.plot_correlation_scan(panel, df, "Cs")
+        assert panel.messages == ["No valid correlations"]
+
+    def test_draws_diverging_bars(self):
+        panel = FakePanel()
+        df = pd.DataFrame({
+            "PartnerElement": ["Sr", "Mo"], "Correlation_r": [0.9, -0.8], "AbsCorrelation": [0.9, 0.8],
+            "N_overlap_nonzero_tanks": [5, 5], "Units": ["kg", "kg"], "Metric": ["inventory", "inventory"],
+        })
+        ph.plot_correlation_scan(panel, df, "Cs")
+        assert panel.ax.cleared
+        assert panel.canvas.draw_idle_called
+        _, _, colors = panel.ax.barh_calls[0]
+        assert "tab:blue" in colors and "tab:red" in colors
+
+
+class TestCorrelationSquareFromDataframe:
+    def test_empty_when_no_element_column(self):
+        data, elements = ph._correlation_square_from_dataframe(pd.DataFrame({"x": [1]}))
+        assert data.empty and elements == []
+
+    def test_extracts_square_matrix(self):
+        corr = pd.DataFrame({"Element": ["Cs", "Sr"], "Cs": [1.0, 0.9], "Sr": [0.9, 1.0]})
+        data, elements = ph._correlation_square_from_dataframe(corr)
+        assert elements == ["Cs", "Sr"]
+        assert data.loc["Cs", "Sr"] == pytest.approx(0.9)
+
+
+class TestAlignedProjectionValues:
+    def test_no_totals_returns_zeros(self):
+        out = ph._aligned_projection_values(["Cs", "Sr"], None)
+        assert out.tolist() == [0.0, 0.0]
+
+    def test_maps_totals_by_element(self):
+        out = ph._aligned_projection_values(["Cs", "Sr"], {"Cs": 100.0, "Sr": 50.0})
+        assert out.tolist() == [100.0, 50.0]
+
+
+class TestPlotCorrelationHeatmap:
+    def _square_corr(self, n=4):
+        elements = [f"E{i}" for i in range(n)]
+        data = pd.DataFrame(np.eye(n), index=elements, columns=elements)
+        data = data.reset_index().rename(columns={"index": "Element"})
+        return data
+
+    def test_empty_correlation_shows_message(self):
+        panel = FakePanel()
+        ph.plot_correlation_heatmap(panel, pd.DataFrame({"x": [1]}))
+        assert panel.messages == ["No correlation matrix"]
+
+    def test_matplotlib_style_renders(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        ph.plot_correlation_heatmap(panel, self._square_corr(), style="Matplotlib lower triangle")
+        qtbot.wait(20)
+        assert panel.ax.get_title() == "Element correlation heatmap"
+
+    def test_matplotlib_style_with_annotation(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        ph.plot_correlation_heatmap(panel, self._square_corr(n=3), style="Matplotlib lower triangle", annotate=True)
+        qtbot.wait(20)
+
+    def test_seaborn_style_renders(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        ph.plot_correlation_heatmap(panel, self._square_corr(), style="Seaborn lower triangle")
+        qtbot.wait(20)
+
+    def test_seaborn_with_projections_renders(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        totals = {"E0": 100.0, "E1": 50.0, "E2": 10.0, "E3": 5.0}
+        ph.plot_correlation_heatmap(
+            panel, self._square_corr(), style="Seaborn + total projections", totals=totals, unit="kg",
+        )
+        qtbot.wait(20)
+
+    def test_seaborn_unavailable_falls_back_to_matplotlib(self, qtbot, monkeypatch):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        monkeypatch.setattr(ph, "sns", None)
+        ph.plot_correlation_heatmap(panel, self._square_corr(), style="Seaborn lower triangle")
+        qtbot.wait(20)
+        assert "seaborn not installed" in panel.ax.get_title()
+
+
+class TestSeabornAvailable:
+    def test_reflects_import_state(self):
+        assert ph.seaborn_available() in (True, False)
+
+
+class TestPlotPairScatter:
+    def test_missing_or_too_few_elements_shows_message(self):
+        panel = FakePanel()
+        ph.plot_pair_scatter(panel, pd.DataFrame({"WasteSiteId": ["T1"], "Cs": [1.0]}), ["Cs"], "kg", "inventory")
+        assert panel.messages == ["Need at least two selected elements with data"]
+
+    def test_two_element_scatter(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        matrix = pd.DataFrame({"WasteSiteId": ["T1", "T2", "T3"], "Cs": [1.0, 2.0, 3.0], "Sr": [2.0, 4.0, 6.0]})
+        ph.plot_pair_scatter(panel, matrix, ["Cs", "Sr"], "kg", "inventory")
+        qtbot.wait(20)
+        assert "r = 1.000" in panel.ax.get_title()
+
+    def test_three_element_scatter_uses_colorbar(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        matrix = pd.DataFrame({
+            "WasteSiteId": ["T1", "T2", "T3"], "Cs": [1.0, 2.0, 3.0],
+            "Sr": [2.0, 4.0, 6.0], "Mo": [5.0, 3.0, 1.0],
+        })
+        ph.plot_pair_scatter(panel, matrix, ["Cs", "Sr", "Mo"], "kg", "inventory")
+        qtbot.wait(20)
+        assert "colored by Mo" in panel.ax.get_title()
 
 
 class TestPlotHeatmap:

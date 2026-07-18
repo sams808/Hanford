@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from data_model import HanfordDataset
+from qt_correlations import CorrelationsPage
 from qt_explorer import ExplorerPage
 from qt_heatmap import HeatmapPage
 from qt_help import ABOUT_HTML, APP_NAME, APP_VERSION, HelpDialog, asset_path
@@ -131,7 +132,7 @@ class EmberMainWindow(QMainWindow):
         self.stack.addWidget(self.tank_explorer_page)
         self.heatmaps_page = HeatmapPage(self)
         self.stack.addWidget(self.heatmaps_page)
-        self.correlations_page = PlaceholderPage(NAV_CORRELATIONS)
+        self.correlations_page = CorrelationsPage(self)
         self.stack.addWidget(self.correlations_page)
         self.vitrification_page = PlaceholderPage(NAV_VITRIFICATION)
         self.stack.addWidget(self.vitrification_page)

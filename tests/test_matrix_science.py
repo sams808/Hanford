@@ -65,3 +65,59 @@ class TestMatrixLongWide:
     def test_empty_when_unit_not_present(self, sample_dataset):
         long_pdf, wide = ms.matrix_long_wide(sample_dataset, unit="XYZ")
         assert long_pdf.empty and wide.empty
+
+
+class TestElementInventoryMatrix:
+    def test_no_elements_or_top_n_uses_all(self, sample_dataset):
+        out = ms.element_inventory_matrix(sample_dataset, unit="kg", include_all_tanks=False)
+        assert set(out.columns) - {"WasteSiteId"} == {"Na", "Fe", "Cd"}
+
+    def test_explicit_elements_filter(self, sample_dataset):
+        out = ms.element_inventory_matrix(sample_dataset, unit="kg", elements=["Fe"], include_all_tanks=False)
+        assert set(out.columns) - {"WasteSiteId"} == {"Fe"}
+
+    def test_requested_element_absent_from_data_returns_empty(self, sample_dataset):
+        # "Au" is a valid symbol but never appears -> filtering leaves zero
+        # rows, which must produce an empty frame, not raise.
+        out = ms.element_inventory_matrix(sample_dataset, unit="kg", elements=["Au"])
+        assert out.empty
+
+    def test_include_all_tanks_reindexes_and_fills_zero(self, sample_dataset):
+        # value_mode="inventory" here specifically to see the raw reindex
+        # fill -- the default log10_inventory mode would turn that filled
+        # 0.0 into NaN by design (covered separately below).
+        out = ms.element_inventory_matrix(
+            sample_dataset, unit="kg", elements=["Na"], value_mode="inventory", include_all_tanks=True,
+        )
+        out = out.set_index("WasteSiteId")
+        assert out.loc["241-A-101", "Na"] == pytest.approx(0.0)  # reindexed in, no Na there
+        assert out.loc["241-AN-104", "Na"] == pytest.approx(500.0)
+
+    def test_log10_inventory_mode_zero_becomes_nan(self, sample_dataset):
+        out = ms.element_inventory_matrix(sample_dataset, unit="kg", elements=["Na"], value_mode="log10_inventory")
+        out = out.set_index("WasteSiteId")
+        assert math.isnan(out.loc["241-A-101", "Na"])  # 0 kg Na there -> NaN, not -inf
+        assert out.loc["241-AN-104", "Na"] == pytest.approx(math.log10(500.0))
+
+    def test_log10_plus1_mode_retains_zero(self, sample_dataset):
+        out = ms.element_inventory_matrix(sample_dataset, unit="kg", elements=["Na"], value_mode="log10_plus1")
+        out = out.set_index("WasteSiteId")
+        assert out.loc["241-A-101", "Na"] == pytest.approx(0.0)  # log10(0+1) = 0
+
+    def test_fraction_mode(self, sample_dataset):
+        out = ms.element_inventory_matrix(sample_dataset, unit="kg", elements=["Fe", "Cd"], value_mode="fraction")
+        out = out.set_index("WasteSiteId")
+        assert out.loc["241-A-101", "Fe"] == pytest.approx(60.0 / 60.5)
+
+    def test_presence_mode(self, sample_dataset):
+        out = ms.element_inventory_matrix(sample_dataset, unit="kg", elements=["Na"], value_mode="presence")
+        out = out.set_index("WasteSiteId")
+        assert out.loc["241-A-101", "Na"] == pytest.approx(0.0)
+        assert out.loc["241-AN-104", "Na"] == pytest.approx(1.0)
+
+    def test_unknown_value_mode_raises(self, sample_dataset):
+        with pytest.raises(ValueError, match="Unknown value_mode"):
+            ms.element_inventory_matrix(sample_dataset, unit="kg", value_mode="bogus")
+
+    def test_empty_when_unit_not_present(self, sample_dataset):
+        assert ms.element_inventory_matrix(sample_dataset, unit="XYZ").empty

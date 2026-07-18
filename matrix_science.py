@@ -13,6 +13,7 @@ import pandas as pd
 import polars as pl
 
 from data_model import HanfordDataset
+from elements import normalize_element_symbol
 
 
 def log10_safe(values) -> np.ndarray:
@@ -80,3 +81,83 @@ def matrix_long_wide(
     wide = wide[ordered]
     wide = wide.reset_index()
     return long_pdf, wide
+
+
+def element_inventory_matrix(
+    dataset: HanfordDataset, unit: str = "kg", elements: Optional[Sequence[str]] = None,
+    top_n: Optional[int] = None, min_inventory: float = 0.0, value_mode: str = "log10_inventory",
+    include_all_tanks: bool = True,
+) -> pd.DataFrame:
+    """THE shared tank x element pivot builder -- every correlation feature
+    (Quick Scan, the kg Association Workbench, Structure/PCA) is built on
+    top of this. Five value_mode transforms:
+        inventory          raw summed inventory in the selected unit
+        log10_inventory    log10(inventory), zeros -> NaN (present-only)
+        log10_plus1        log10(inventory + 1), zeros retained as 0
+        fraction           fraction of each tank's total across the
+                            *selected/displayed* elements only (not the
+                            tank's true whole-inventory total -- contrast
+                            with element_science.target_by_tank_unit)
+        presence           1.0 if inventory > 0 else 0.0
+    """
+    df = dataset.require_df().filter((pl.col("Units") == unit) & pl.col("Element").is_not_null())
+    df = df.filter(pl.col("Inventory") > float(min_inventory))
+    if df.is_empty():
+        return pd.DataFrame()
+
+    if elements:
+        clean_elements = []
+        for e in elements:
+            sym = normalize_element_symbol(str(e))
+            if sym and sym not in clean_elements:
+                clean_elements.append(sym)
+        if clean_elements:
+            df = df.filter(pl.col("Element").is_in(clean_elements))
+    elif top_n and int(top_n) > 0:
+        clean_elements = (
+            df.group_by("Element")
+            .agg(pl.col("Inventory").sum().alias("Total"))
+            .sort("Total", descending=True)
+            .head(int(top_n))
+            .get_column("Element")
+            .to_list()
+        )
+        df = df.filter(pl.col("Element").is_in(clean_elements))
+    else:
+        clean_elements = df.get_column("Element").drop_nulls().unique().sort().to_list()
+
+    grouped = (
+        df.group_by(["WasteSiteId", "Element"])
+        .agg(pl.col("Inventory").sum().alias("Inventory"))
+        .to_pandas()
+    )
+    if grouped.empty:
+        return pd.DataFrame()
+    wide = grouped.pivot_table(index="WasteSiteId", columns="Element", values="Inventory", aggfunc="sum", fill_value=0.0)
+
+    ordered = [e for e in clean_elements if e in wide.columns] if clean_elements else list(wide.columns)
+    rest = [c for c in wide.columns if c not in ordered]
+    wide = wide[ordered + rest]
+
+    if include_all_tanks:
+        all_tanks = dataset.available_tanks()
+        wide = wide.reindex(all_tanks, fill_value=0.0)
+
+    raw = wide.copy()
+    mode = (value_mode or "inventory").lower()
+    if mode == "inventory":
+        val = raw
+    elif mode == "log10_inventory":
+        val = raw.replace(0.0, np.nan).apply(lambda col: np.log10(col))
+    elif mode == "log10_plus1":
+        val = np.log10(raw + 1.0)
+    elif mode == "fraction":
+        denom = raw.sum(axis=1).replace(0.0, np.nan)
+        val = raw.div(denom, axis=0)
+    elif mode == "presence":
+        val = (raw > 0).astype(float)
+    else:
+        raise ValueError(f"Unknown value_mode: {value_mode}")
+
+    val = val.reset_index().rename(columns={"index": "WasteSiteId"})
+    return val
