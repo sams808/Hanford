@@ -23,6 +23,8 @@ from data_model import HanfordDataset
 from qt_explorer import ExplorerPage
 from qt_help import ABOUT_HTML, APP_NAME, APP_VERSION, HelpDialog, asset_path
 from qt_overview import OverviewPage
+from qt_tank_attributes import TankAttributesPage
+from qt_tank_explorer import TankExplorerPage
 from qt_widgets import StatusLogger
 from qt_worker import run_in_thread
 
@@ -122,9 +124,9 @@ class EmberMainWindow(QMainWindow):
         self.stack.addWidget(self.overview_page)
         self.explorer_page = ExplorerPage(self)
         self.stack.addWidget(self.explorer_page)
-        self.tank_attrs_page = PlaceholderPage(NAV_TANK_ATTRS)
+        self.tank_attrs_page = TankAttributesPage(self)
         self.stack.addWidget(self.tank_attrs_page)
-        self.tank_explorer_page = PlaceholderPage(NAV_TANK_EXPLORER)
+        self.tank_explorer_page = TankExplorerPage(self)
         self.stack.addWidget(self.tank_explorer_page)
         self.heatmaps_page = PlaceholderPage(NAV_HEATMAPS)
         self.stack.addWidget(self.heatmaps_page)

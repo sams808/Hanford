@@ -145,6 +145,36 @@ class TestPlotBarh:
         assert panel.canvas.draw_idle_called
 
 
+class TestPlotGroupedTankProfile:
+    def test_missing_columns_shows_message(self):
+        panel = FakePanel()
+        ph.plot_grouped_tank_profile(panel, pd.DataFrame({"x": [1]}), "Inventory_sum", "t")
+        assert panel.messages == ["No tank profile data"]
+
+    def test_all_nonpositive_shows_message(self):
+        panel = FakePanel()
+        df = pd.DataFrame({"Element": ["Na"], "Inventory_sum": [0.0], "WasteSiteId": ["241-A-101"]})
+        ph.plot_grouped_tank_profile(panel, df, "Inventory_sum", "t")
+        assert panel.messages == ["No positive data to plot"]
+
+    def test_draws_one_series_per_tank(self, qtbot):
+        # pandas' DataFrame.plot(kind="barh", ax=...) needs a real Axes
+        # (spines/transforms/containers) that FakeAx can't stand in for --
+        # use the real PlotWidget here instead.
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        df = pd.DataFrame({
+            "Element": ["Na", "Fe", "Na", "Fe"],
+            "Inventory_sum": [500.0, 60.0, 300.0, 40.0],
+            "WasteSiteId": ["241-A-101", "241-A-101", "241-AN-104", "241-AN-104"],
+            "Units": ["kg", "kg", "kg", "kg"],
+        })
+        ph.plot_grouped_tank_profile(panel, df, "Inventory_sum", "t")
+        qtbot.wait(20)
+        assert len(panel.ax.get_legend().get_texts()) == 2  # one series per tank
+
+
 class TestPlotTargetVsTotal:
     def test_missing_columns_shows_message(self):
         panel = FakePanel()

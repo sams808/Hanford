@@ -65,6 +65,8 @@ def _raw_attributes_rows() -> pl.DataFrame:
         "TankType": ["SST-4", "DST"],
         "TankStatus": ["", ""],
         "TankIntegrity": ["Sound", "Assumed leaker"],
+        "Capacity": ["1000", "1160"],
+        "DIL_Gal": ["37000", "0"],
     })
 
 

@@ -109,6 +109,46 @@ def plot_barh(
     panel.canvas.draw_idle()
 
 
+def plot_grouped_tank_profile(panel, data: pd.DataFrame, value_col: str, title: str, top_n: int = 25) -> None:
+    """Grouped horizontal bars: one cluster per element, one series per
+    tank -- for comparing composition across several selected tanks at once."""
+    if data is None or data.empty or value_col not in data or "Element" not in data:
+        panel.show_message("No tank profile data")
+        return
+    pdf = data.copy()
+    pdf["_plot_value"] = numeric_plot_series(pdf[value_col])
+    pdf = pdf.dropna(subset=["Element", "_plot_value"])
+    pdf = pdf[pdf["_plot_value"] > 0]
+    if pdf.empty:
+        panel.show_message("No positive data to plot")
+        return
+
+    pdf["_plot_element"] = make_unique_plot_labels(pdf, "Element")
+
+    top_labels = (
+        pdf.groupby("_plot_element", as_index=True)["_plot_value"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(int(top_n))
+        .index
+        .tolist()
+    )
+    pdf = pdf[pdf["_plot_element"].isin(top_labels)]
+    pivot = pdf.pivot_table(index="_plot_element", columns="WasteSiteId", values="_plot_value", aggfunc="sum", fill_value=0.0)
+    pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=True).index]
+
+    panel.ax.clear()
+    ax = panel.ax
+    pivot.plot(kind="barh", ax=ax, width=0.85)
+    ax.set_xlabel(value_col)
+    ax.set_ylabel("Element" if ("Units" not in pdf or pdf["Units"].nunique() <= 1) else "Element [unit]")
+    ax.set_title(title)
+    ax.grid(True, axis="x", alpha=0.25)
+    ax.legend(title="Tank", fontsize=8)
+    panel.figure.tight_layout()
+    panel.canvas.draw_idle()
+
+
 def plot_target_vs_total(panel, data: pd.DataFrame, title: str) -> None:
     required = ["Context_TotalInventory_same_unit", "Target_Inventory_sum", "Units"]
     if data is None or data.empty or any(c not in data for c in required):
