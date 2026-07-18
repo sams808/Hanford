@@ -379,3 +379,89 @@ class TestPlotTargetVsTotal:
         assert len(panel.ax.scatter_calls) == 2
         assert panel.ax.legend_called
         assert panel.canvas.draw_idle_called
+
+
+class TestPlotVitrificationBurden:
+    def test_missing_columns_shows_message(self):
+        panel = FakePanel()
+        ph.plot_vitrification_burden(panel, pd.DataFrame({"x": [1]}))
+        assert panel.messages == ["No vitrification screening data"]
+
+    def test_no_positive_inventory_shows_message(self):
+        panel = FakePanel()
+        df = pd.DataFrame({
+            "WasteSiteId": ["T1"], "Total_kg_inventory": [0.0], "Total_Ci_inventory": [0.0],
+            "frac_problem_elements_proxy": [0.0], "frac_glass_former_or_intermediate": [0.0],
+        })
+        ph.plot_vitrification_burden(panel, df)
+        assert panel.messages == ["No positive tank inventory"]
+
+    def test_renders_with_real_plot_widget(self, qtbot):
+        # figure.clear()/add_subplot()/colorbar() need a real Figure, not
+        # the FakePanel stand-in used for the early-return checks above.
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        df = pd.DataFrame({
+            "WasteSiteId": ["T1", "T2"], "Total_kg_inventory": [100.0, 50.0],
+            "Total_Ci_inventory": [10.0, 5.0], "frac_problem_elements_proxy": [0.1, 0.9],
+            "frac_glass_former_or_intermediate": [0.8, 0.1],
+        })
+        ph.plot_vitrification_burden(panel, df)
+        qtbot.wait(20)
+        assert panel.ax.get_title() == "Vitrification screening map"
+
+
+class TestPlotCandidateScores:
+    def test_missing_columns_shows_message(self):
+        panel = FakePanel()
+        ph.plot_candidate_scores(panel, pd.DataFrame({"x": [1]}))
+        assert panel.messages == ["No candidate ranking data"]
+
+    def test_all_nan_scores_shows_message(self):
+        panel = FakePanel()
+        df = pd.DataFrame({"WasteSiteId": ["T1"], "User_search_score_proxy": [float("nan")]})
+        ph.plot_candidate_scores(panel, df)
+        assert panel.messages == ["No candidate scores to plot"]
+
+    def test_negative_scores_are_plotted_not_filtered(self):
+        # Unlike plot_barh, negative scores must still render -- a low or
+        # negative vitrification score is meaningful screening information.
+        panel = FakePanel()
+        df = pd.DataFrame({"WasteSiteId": ["T1", "T2"], "User_search_score_proxy": [-50.0, 30.0]})
+        ph.plot_candidate_scores(panel, df)
+        labels, values, color = panel.ax.barh_calls[0]
+        assert set(labels) == {"T1", "T2"}
+        assert -50.0 in values
+
+    def test_top_n_limits_bars(self):
+        panel = FakePanel()
+        df = pd.DataFrame({"WasteSiteId": [f"T{i}" for i in range(10)], "User_search_score_proxy": list(range(10))})
+        ph.plot_candidate_scores(panel, df, top_n=3)
+        labels, values, color = panel.ax.barh_calls[0]
+        assert len(labels) == 3
+
+
+class TestPlotBlendScores:
+    def test_missing_columns_shows_message(self):
+        panel = FakePanel()
+        ph.plot_blend_scores(panel, pd.DataFrame({"x": [1]}))
+        assert panel.messages == ["No blend partner data"]
+
+    def test_all_nan_scores_shows_message(self):
+        panel = FakePanel()
+        df = pd.DataFrame({"PartnerTank": ["T1"], "BaseTank": ["T0"], "Blend_complement_score_proxy": [float("nan")]})
+        ph.plot_blend_scores(panel, df)
+        assert panel.messages == ["No blend scores to plot"]
+
+    def test_title_includes_base_tank(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        df = pd.DataFrame({
+            "PartnerTank": ["T1", "T2"], "BaseTank": ["T0", "T0"],
+            "Blend_complement_score_proxy": [10.0, 20.0],
+        })
+        ph.plot_blend_scores(panel, df)
+        qtbot.wait(20)
+        assert "T0" in panel.ax.get_title()

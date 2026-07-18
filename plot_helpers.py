@@ -1066,3 +1066,83 @@ def plot_element_network(panel, network_nodes: pd.DataFrame, network_edges: pd.D
     ax.axis("off")
     panel.ax = ax
     panel.canvas.draw_idle()
+
+
+# ---------------------------------------------------------------------------
+# Vitrification Screening / Candidate Search / Blend Partners (M10), ported
+# from the old app's plot_vitrification_burden / plot_candidate_scores /
+# plot_blend_scores.
+# ---------------------------------------------------------------------------
+
+def plot_vitrification_burden(panel, data: pd.DataFrame, title: str = "Vitrification screening map") -> None:
+    required = ["Total_kg_inventory", "Total_Ci_inventory", "frac_problem_elements_proxy", "frac_glass_former_or_intermediate", "WasteSiteId"]
+    if data is None or data.empty or any(c not in data for c in required):
+        panel.show_message("No vitrification screening data")
+        return
+    pdf = data.copy()
+    for c in required[:-1]:
+        pdf[c] = numeric_plot_series(pdf[c]).fillna(0.0)
+    pdf = pdf[(pdf["Total_kg_inventory"] > 0) | (pdf["Total_Ci_inventory"] > 0)]
+    if pdf.empty:
+        panel.show_message("No positive tank inventory")
+        return
+    panel.ax.clear()
+    ax = panel.ax
+    size = 40 + 500 * pdf["frac_glass_former_or_intermediate"].clip(lower=0, upper=1)
+    sc = ax.scatter(
+        pdf["Total_kg_inventory"].clip(lower=1e-30), pdf["Total_Ci_inventory"].clip(lower=1e-30),
+        c=pdf["frac_problem_elements_proxy"].clip(lower=0), s=size, alpha=0.75,
+    )
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Total chemical inventory (kg)")
+    ax.set_ylabel("Total radiological inventory (Ci)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.25)
+    cbar = panel.figure.colorbar(sc, ax=ax)
+    cbar.set_label("Problem-element proxy fraction (kg/kg)")
+    panel.figure.tight_layout()
+    panel.canvas.draw_idle()
+
+
+def plot_candidate_scores(panel, data: pd.DataFrame, score_col: str = "User_search_score_proxy", top_n: int = 30) -> None:
+    if data is None or data.empty or score_col not in data or "WasteSiteId" not in data:
+        panel.show_message("No candidate ranking data")
+        return
+    pdf = data.copy()
+    pdf["_score"] = numeric_plot_series(pdf[score_col])
+    pdf = pdf.dropna(subset=["_score"]).sort_values("_score", ascending=False).head(int(top_n)).iloc[::-1]
+    if pdf.empty:
+        panel.show_message("No candidate scores to plot")
+        return
+    panel.ax.clear()
+    ax = panel.ax
+    ax.barh(pdf["WasteSiteId"].astype(str), pdf["_score"].astype(float), color=BASE_COLOR)
+    ax.set_xlabel(f"{score_col} (dimensionless proxy score)")
+    ax.set_ylabel("Tank")
+    ax.set_title("Candidate tank ranking")
+    ax.grid(True, axis="x", alpha=0.25)
+    panel.figure.tight_layout()
+    panel.canvas.draw_idle()
+
+
+def plot_blend_scores(panel, data: pd.DataFrame, top_n: int = 30) -> None:
+    if data is None or data.empty or "Blend_complement_score_proxy" not in data or "PartnerTank" not in data:
+        panel.show_message("No blend partner data")
+        return
+    pdf = data.copy()
+    pdf["_score"] = numeric_plot_series(pdf["Blend_complement_score_proxy"])
+    pdf = pdf.dropna(subset=["_score"]).sort_values("_score", ascending=False).head(int(top_n)).iloc[::-1]
+    if pdf.empty:
+        panel.show_message("No blend scores to plot")
+        return
+    panel.ax.clear()
+    ax = panel.ax
+    ax.barh(pdf["PartnerTank"].astype(str), pdf["_score"].astype(float), color=BASE_COLOR)
+    ax.set_xlabel("Blend complement score (dimensionless proxy)")
+    ax.set_ylabel("Partner tank")
+    base = str(pdf["BaseTank"].iloc[0]) if "BaseTank" in pdf and len(pdf) else "base"
+    ax.set_title(f"Potential blend partners for {base}")
+    ax.grid(True, axis="x", alpha=0.25)
+    panel.figure.tight_layout()
+    panel.canvas.draw_idle()

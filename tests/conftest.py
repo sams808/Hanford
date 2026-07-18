@@ -197,6 +197,42 @@ def oxide_dataset():
 
 
 @pytest.fixture
+def vitrification_dataset():
+    """4 tanks, hand-verifiable screening/candidate/blend numbers:
+      241-A-101: B=10kg (former), Na=5kg (modifier), Cr=2kg (problem+redox),
+                 plus Cs=50 Ci (radiological) -- total_kg=17
+      241-A-102: Cl=3kg (volatile+problem only) -- total_kg=3
+      241-A-103: Si=8kg (former only) -- total_kg=8
+      241-A-104: Cs=10 Ci only, NO kg rows at all -- exercises the
+                 all-fractions-NaN-for-this-tank edge case (zero total kg).
+    Expected screening/candidate/blend scores are computed independently
+    by hand from these numbers in each test, not by re-deriving the
+    implementation's own logic."""
+    rows = {"WasteSiteId": [], "Analyte": [], "WastePhase": [], "WasteType": [], "Inventory": [], "Units": []}
+
+    def add(tank, analyte, inv, unit):
+        rows["WasteSiteId"].append(tank)
+        rows["Analyte"].append(analyte)
+        rows["WastePhase"].append("Liquid")
+        rows["WasteType"].append("T1")
+        rows["Inventory"].append(inv)
+        rows["Units"].append(unit)
+
+    add("241-A-101", "B", 10.0, "kg")
+    add("241-A-101", "Na", 5.0, "kg")
+    add("241-A-101", "Cr", 2.0, "kg")
+    add("241-A-101", "137Cs", 50.0, "Ci")
+    add("241-A-102", "Cl", 3.0, "kg")
+    add("241-A-103", "Si", 8.0, "kg")
+    add("241-A-104", "137Cs", 10.0, "Ci")
+
+    dataset = HanfordDataset()
+    dataset.df = dataset._clean_dataframe(pl.DataFrame(rows))
+    dataset.report = None
+    return dataset
+
+
+@pytest.fixture
 def real_csv_paths():
     """(composition_path, attributes_path) for the real local dataset.
     Use with @requires_real_data."""
