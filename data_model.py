@@ -113,6 +113,15 @@ def _clean_numeric_expr(col: str) -> pl.Expr:
     return pl.when(expr.is_in(NULL_VALUES)).then(None).otherwise(expr).cast(pl.Float64, strict=False)
 
 
+def list_join_expr(col: str, alias: Optional[str] = None) -> pl.Expr:
+    """A group-by aggregation expression collecting a column's distinct
+    non-null values as a (still-list-typed) column -- used by the
+    *_science modules for "which analytes/phases/types contributed to this
+    group" summary columns. Kept as a Polars list rather than joined into a
+    string here; pandas/table/export code stringifies it on the way out."""
+    return pl.col(col).drop_nulls().unique().sort().alias(alias or f"{col}_list")
+
+
 @dataclass
 class LoadReport:
     source_path: Path

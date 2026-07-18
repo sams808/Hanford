@@ -158,6 +158,19 @@ class TestMergeTankAttributesEdgeCases:
         assert remerged["HasTankAttributes"].all()
 
 
+class TestListJoinExpr:
+    def test_collects_sorted_unique_non_null_values(self):
+        df = pl.DataFrame({"g": [1, 1, 1, 2], "v": ["b", "a", "b", None]})
+        out = df.group_by("g", maintain_order=True).agg(dm.list_join_expr("v")).sort("g")
+        assert out.filter(pl.col("g") == 1)["v_list"].item().to_list() == ["a", "b"]
+        assert out.filter(pl.col("g") == 2)["v_list"].item().to_list() == []
+
+    def test_custom_alias(self):
+        df = pl.DataFrame({"g": [1], "v": ["x"]})
+        out = df.group_by("g").agg(dm.list_join_expr("v", "MyAlias"))
+        assert "MyAlias" in out.columns
+
+
 class TestCleanAttributesDataframeErrors:
     def test_missing_id_column_raises(self):
         dataset = dm.HanfordDataset()

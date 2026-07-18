@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from data_model import HanfordDataset
+from qt_explorer import ExplorerPage
 from qt_help import ABOUT_HTML, APP_NAME, APP_VERSION, HelpDialog, asset_path
 from qt_overview import OverviewPage
 from qt_widgets import StatusLogger
@@ -119,7 +120,7 @@ class EmberMainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.overview_page = OverviewPage(self)
         self.stack.addWidget(self.overview_page)
-        self.explorer_page = PlaceholderPage(NAV_EXPLORER)
+        self.explorer_page = ExplorerPage(self)
         self.stack.addWidget(self.explorer_page)
         self.tank_attrs_page = PlaceholderPage(NAV_TANK_ATTRS)
         self.stack.addWidget(self.tank_attrs_page)

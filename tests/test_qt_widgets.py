@@ -21,6 +21,16 @@ class TestFormatCell:
     def test_list_joined(self):
         assert _format_cell(["A", "B", "C"]) == "A; B; C"
 
+    def test_numpy_array_joined(self):
+        # Polars list-columns arrive here as numpy object arrays (not
+        # Python lists) once a DataFrame has gone through .to_pandas() --
+        # pd.isna() on one of those returns an array, not a bool, so this
+        # must be handled before the scalar-isna fallback branch.
+        assert _format_cell(np.array(["Cs", "Sr"], dtype=object)) == "Cs; Sr"
+
+    def test_empty_numpy_array(self):
+        assert _format_cell(np.array([], dtype=object)) == ""
+
     def test_plain_string(self):
         assert _format_cell("Cs") == "Cs"
 

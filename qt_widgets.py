@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Callable, List, Optional
 
+import numpy as np
 import pandas as pd
 
 import matplotlib
@@ -137,7 +138,11 @@ class StatusLogger(QObject):
 def _format_cell(value: Any) -> str:
     if value is None:
         return ""
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, np.ndarray)):
+        # Polars list-columns (e.g. the "which analytes contributed" summary
+        # columns) come through pandas as numpy object arrays, not Python
+        # lists -- pd.isna() on one of those returns an array, not a bool,
+        # so this check must come before the scalar pd.isna() branch below.
         return "; ".join(str(v) for v in value)
     if isinstance(value, float):
         return "" if pd.isna(value) else f"{value:.5g}"
