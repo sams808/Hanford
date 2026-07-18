@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 import overview_science as ov
@@ -113,3 +114,36 @@ class TestTopAnalytes:
     def test_includes_non_elemental_analyte(self, sample_dataset):
         top = ov.top_analytes(sample_dataset, unit="Ci", top_n=10)
         assert "Total Alpha" in top["Analyte"].values
+
+
+class TestEnvironmentReport:
+    def test_has_expected_fields(self):
+        env = ov.environment_report().iloc[0]
+        assert env["python_version"]
+        assert env["polars_version"]
+        assert env["pandas_version"]
+
+    def test_missing_pyarrow_falls_back_gracefully(self, monkeypatch):
+        import sys
+        monkeypatch.setitem(sys.modules, "pyarrow", None)  # forces ImportError
+        env = ov.environment_report().iloc[0]
+        assert env["pyarrow_version"] == "not installed"
+
+
+class TestExportGlobalDebugBundle:
+    def test_writes_expected_files(self, sample_dataset, tmp_path):
+        sample_dataset.output_root = tmp_path
+        out_dir = ov.export_global_debug_bundle(sample_dataset, extra_info={"app_version": "0.1.0"})
+        assert out_dir.exists()
+        expected = {
+            "overview.csv", "units_audit.csv", "missing_audit.csv", "phase_audit.csv",
+            "waste_type_audit.csv", "farm_audit.csv", "top_elements_all.csv",
+            "top_analytes_all.csv", "raw_preview.csv", "environment.csv", "manifest.csv",
+        }
+        assert expected.issubset({p.name for p in out_dir.glob("*.csv")})
+
+    def test_extra_info_merged_into_environment_csv(self, sample_dataset, tmp_path):
+        sample_dataset.output_root = tmp_path
+        out_dir = ov.export_global_debug_bundle(sample_dataset, extra_info={"app_version": "9.9.9"})
+        env = pd.read_csv(out_dir / "environment.csv")
+        assert env.iloc[0]["app_version"] == "9.9.9"

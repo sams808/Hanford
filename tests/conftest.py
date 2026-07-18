@@ -1,8 +1,18 @@
 """
-Shared pytest fixtures. Qt-specific autouse fixtures (synchronous worker,
-hermetic QSettings, blocked dialogs) are added once qt_worker.py and the
-first Qt-based workspace exist (M2) — kept out for now since importing them
-here would require PySide6 before any Qt module is written.
+Shared pytest fixtures: data fixtures (below) plus three autouse Qt
+fixtures that keep the Qt-level tests deterministic and non-blocking:
+
+- _synchronous_workers: qt_worker.run_in_thread executes inline during
+  tests instead of on a QThreadPool, so tests don't need wait-loops.
+- _hermetic_qsettings: QSettings is replaced with an in-memory fake so
+  real per-user registry values never leak into or out of a test.
+- _prevent_blocking_qt_dialogs: QMessageBox convenience popups resolve
+  immediately instead of blocking on user input under pytest.
+
+qt_shell.py and friends must import QSettings *locally* inside the methods
+that use it (not once at module level) for _hermetic_qsettings to actually
+take effect there -- patching PySide6.QtCore.QSettings only affects lookups
+that happen after the patch is applied.
 """
 from pathlib import Path
 
@@ -78,3 +88,49 @@ def real_csv_paths():
     """(composition_path, attributes_path) for the real local dataset.
     Use with @requires_real_data."""
     return REAL_CSV_PATH, REAL_ATTRS_PATH
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _synchronous_workers():
+    import qt_worker
+    qt_worker.set_synchronous(True)
+    yield
+    qt_worker.set_synchronous(False)
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_qsettings(monkeypatch):
+    store: dict = {}
+
+    class FakeQSettings:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def value(self, key, default=None, type=None):
+            val = store.get(key, default)
+            if type is not None and val is not None:
+                try:
+                    return type(val)
+                except (TypeError, ValueError):
+                    return val
+            return val
+
+        def setValue(self, key, value) -> None:
+            store[key] = value
+
+        def sync(self) -> None:
+            pass
+
+    monkeypatch.setattr("PySide6.QtCore.QSettings", FakeQSettings)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _prevent_blocking_qt_dialogs(monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: QMessageBox.Ok))
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: QMessageBox.Ok))
+    monkeypatch.setattr(QMessageBox, "critical", staticmethod(lambda *a, **k: QMessageBox.Ok))
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    yield

@@ -8,6 +8,7 @@ a god-class.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -135,3 +136,61 @@ def top_elements(dataset: HanfordDataset, unit: Optional[str] = None, top_n: int
         .head(top_n)
         .to_pandas()
     )
+
+
+def environment_report() -> pd.DataFrame:
+    """Library versions + platform info for debug bundles. Deliberately has
+    no knowledge of app identity (APP_NAME/APP_VERSION) -- that's a Qt-layer
+    concern the caller can merge in via `extra_info`."""
+    import platform
+    import sys
+
+    import matplotlib
+    import numpy
+
+    try:
+        import pyarrow
+        pyarrow_version = pyarrow.__version__
+    except Exception:
+        pyarrow_version = "not installed"
+
+    return pd.DataFrame([{
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+        "polars_version": pl.__version__,
+        "pandas_version": pd.__version__,
+        "numpy_version": numpy.__version__,
+        "matplotlib_version": matplotlib.__version__,
+        "pyarrow_version": pyarrow_version,
+    }])
+
+
+def export_global_debug_bundle(dataset: HanfordDataset, extra_info: Optional[dict] = None) -> Path:
+    """Write a timestamped folder of small audit CSVs -- send this instead
+    of the full source CSV when something needs debugging."""
+    from datetime import datetime
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_dir = dataset.output_root / f"debug_bundle_{stamp}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    overview(dataset).to_csv(out_dir / "overview.csv", index=False)
+    units_audit(dataset).to_csv(out_dir / "units_audit.csv", index=False)
+    missing_audit(dataset).to_csv(out_dir / "missing_audit.csv", index=False)
+    phase_audit(dataset).to_csv(out_dir / "phase_audit.csv", index=False)
+    type_audit(dataset).to_csv(out_dir / "waste_type_audit.csv", index=False)
+    farm_audit(dataset).to_csv(out_dir / "farm_audit.csv", index=False)
+    top_elements(dataset, unit=None, top_n=200).to_csv(out_dir / "top_elements_all.csv", index=False)
+    top_analytes(dataset, unit=None, top_n=300).to_csv(out_dir / "top_analytes_all.csv", index=False)
+    dataset.raw_preview(500).to_csv(out_dir / "raw_preview.csv", index=False)
+
+    env = environment_report()
+    for key, value in (extra_info or {}).items():
+        env[key] = value
+    env.to_csv(out_dir / "environment.csv", index=False)
+
+    manifest = pd.DataFrame([
+        {"file": p.name, "size_bytes": p.stat().st_size} for p in sorted(out_dir.glob("*.csv"))
+    ])
+    manifest.to_csv(out_dir / "manifest.csv", index=False)
+    return out_dir
