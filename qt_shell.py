@@ -12,15 +12,16 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QCheckBox, QFileDialog, QLabel, QListWidget, QListWidgetItem,
+    QCheckBox, QFileDialog, QListWidget, QListWidgetItem,
     QMainWindow, QMessageBox, QStackedWidget, QToolBar, QVBoxLayout, QWidget,
 )
 
 from data_model import HanfordDataset
 from qt_correlations import CorrelationsPage
+from qt_debug import DebugPage
 from qt_explorer import ExplorerPage
 from qt_heatmap import HeatmapPage
 from qt_help import ABOUT_HTML, APP_NAME, APP_VERSION, HelpDialog, asset_path
@@ -44,18 +45,6 @@ NAV_ITEMS = [
     NAV_OVERVIEW, NAV_EXPLORER, NAV_TANK_ATTRS, NAV_TANK_EXPLORER,
     NAV_HEATMAPS, NAV_CORRELATIONS, NAV_VITRIFICATION, NAV_DEBUG,
 ]
-
-
-class PlaceholderPage(QWidget):
-    """A workspace not yet built, filled in by a later milestone."""
-
-    def __init__(self, name: str, parent: Optional[QWidget] = None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
-        label = QLabel(f"{name} workspace — coming in a later milestone.")
-        label.setObjectName("SectionNote")
-        layout.addWidget(label)
 
 
 class EmberMainWindow(QMainWindow):
@@ -137,7 +126,7 @@ class EmberMainWindow(QMainWindow):
         self.stack.addWidget(self.correlations_page)
         self.vitrification_page = VitrificationPage(self)
         self.stack.addWidget(self.vitrification_page)
-        self.debug_page = PlaceholderPage(NAV_DEBUG)
+        self.debug_page = DebugPage(self)
         self.stack.addWidget(self.debug_page)
         outer.addWidget(self.stack, 1)
 
@@ -173,6 +162,7 @@ class EmberMainWindow(QMainWindow):
 
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction("About", self.show_about)
+        help_menu.addAction("Notice", self.show_notice)
 
     # ------------------------------------------------------------------
     # Data loading
@@ -262,6 +252,12 @@ class EmberMainWindow(QMainWindow):
 
     def show_about(self) -> None:
         HelpDialog(self, html=ABOUT_HTML, title=f"About {APP_NAME}").exec()
+
+    def show_notice(self) -> None:
+        from qt_help import load_notice_markdown
+        HelpDialog(
+            self, markdown=load_notice_markdown(), title=f"{APP_NAME} — Detailed Notice", width=920, height=760,
+        ).exec()
 
     def _restore_settings(self) -> None:
         from PySide6.QtCore import QSettings

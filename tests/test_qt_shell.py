@@ -92,3 +92,44 @@ class TestDarkModeToggle:
     def test_toggling_does_not_raise(self, window, qtbot):
         window.dark_mode_action.setChecked(True)
         window.dark_mode_action.setChecked(False)
+
+
+class TestHelpMenu:
+    """HelpDialog.exec() blocks for real user input, so these patch the
+    class qt_shell imported (not qt_help's own copy of the name) rather
+    than calling the real modal dialog."""
+
+    def test_show_about_opens_dialog(self, window, monkeypatch):
+        import qt_shell
+
+        captured = {}
+
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                captured.update(kwargs)
+
+            def exec(self):
+                captured["exec_called"] = True
+
+        monkeypatch.setattr(qt_shell, "HelpDialog", FakeDialog)
+        window.show_about()
+        assert captured["exec_called"]
+        assert "Ember" in captured["title"]
+
+    def test_show_notice_opens_dialog_with_notice_markdown(self, window, monkeypatch):
+        import qt_shell
+
+        captured = {}
+
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                captured.update(kwargs)
+
+            def exec(self):
+                captured["exec_called"] = True
+
+        monkeypatch.setattr(qt_shell, "HelpDialog", FakeDialog)
+        window.show_notice()
+        assert captured["exec_called"]
+        assert "Ember" in captured["markdown"]
+        assert "Detailed Notice" in captured["title"]

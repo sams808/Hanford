@@ -1,11 +1,13 @@
 """
-qt_help.py — in-app Help: About dialog and shared app identity constants.
-The full Notice (per-workspace user guide, adapted from the old app's
-detailed notice) lands in a later milestone; this is the minimal-but-real
-version qt_main.py/qt_shell.py need to exist at all.
+qt_help.py — in-app Help: About dialog, the full detailed Notice (rendered
+from NOTICE.md via QTextBrowser.setMarkdown -- Qt has native Markdown
+support, replacing the old app's ~230-line hand-rolled renderer), and
+shared app identity constants.
 """
 from __future__ import annotations
 
+import os
+import sys
 from typing import Optional
 
 from PySide6.QtWidgets import QDialog, QTextBrowser, QVBoxLayout, QWidget
@@ -18,10 +20,23 @@ APP_TAGLINE = "Hanford tank composition explorer & vitrification screening"
 def asset_path(name: str) -> str:
     """Path to a bundled asset (assets/ next to the code, or the PyInstaller
     bundle dir when frozen)."""
-    import os
-    import sys
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, "assets", name)
+
+
+def notice_path() -> str:
+    """Path to NOTICE.md (bundled at the PyInstaller bundle root via
+    `--add-data "NOTICE.md;."`, next to the code otherwise)."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, "NOTICE.md")
+
+
+def load_notice_markdown() -> str:
+    try:
+        with open(notice_path(), encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return "# Notice\n\nNOTICE.md could not be found next to the application."
 
 
 # NOTE: the lab/PI/funding attribution below mirrors the sibling Dataapp
@@ -57,12 +72,18 @@ scipy &middot; scikit-learn &middot; networkx &middot; plotly &middot; xraydb &m
 
 
 class HelpDialog(QDialog):
-    def __init__(self, parent: Optional[QWidget] = None, *, html: str = ABOUT_HTML, title: str = "About Ember"):
+    def __init__(
+        self, parent: Optional[QWidget] = None, *, html: str = ABOUT_HTML, markdown: Optional[str] = None,
+        title: str = "About Ember", width: int = 640, height: int = 520,
+    ):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.resize(640, 520)
+        self.resize(width, height)
         layout = QVBoxLayout(self)
         self.browser = QTextBrowser()
         self.browser.setOpenExternalLinks(True)
-        self.browser.setHtml(html)
+        if markdown is not None:
+            self.browser.setMarkdown(markdown)
+        else:
+            self.browser.setHtml(html)
         layout.addWidget(self.browser)
