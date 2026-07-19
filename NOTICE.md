@@ -13,11 +13,15 @@ Ember is a **visual exploration and screening tool** for Hanford tank compositio
 - Which tanks may be interesting candidates for blending or vitrification screening?
 - Which data tables and plot inputs should be exported for deeper analysis?
 
-Ember's concept was inspired by PNNL's [Phoenix platform](https://phoenix.pnnl.gov/phoenix/apps/gallery/index.html), a gallery of internally-developed PNNL data-science applications. **Ember is an independent project and is not produced by, affiliated with, or endorsed by PNNL or the Phoenix platform.**
+The bundled composition data (`Hanford.csv`, `Tank_attributes.csv`) comes from PNNL's [PHOENIX](https://phoenix.pnnl.gov) (Hanford Online Information Exchange), the access mechanism for Tri-Party Agreement tank waste databases:
 
-> **Provenance placeholder:** the exact source/citation for `Hanford.csv` (which DOE/PNNL report, dataset version, or extraction date it comes from) has not been confirmed yet. Fill this in before distributing Ember outside the group.
+> Brulotte, P.J., and Christensen, K.C.. "Tri-Party Agreement databases, access mechanism and procedures". United States. doi:10.2172/10112540. https://www.osti.gov/servlets/purl/10112540
 >
-> **Credit placeholder:** lab/PI attribution below is a starting draft (mirrors the sibling Dataapp project's credits) — confirm the exact wording before treating it as final.
+> "PNNL Hanford Online Information Exchange (PHOENIX)", Pacific Northwest National Laboratory, Richland WA, U.S. Department of Energy. https://phoenix.pnnl.gov
+
+**Ember (this application) is an independent project and is not produced by, affiliated with, or endorsed by PNNL or the U.S. Department of Energy.**
+
+> **Credit placeholder:** lab/PI attribution below is a starting draft (mirrors the sibling Dataapp/PRISM project's credits) — confirm the exact wording before treating it as final.
 
 ---
 

@@ -58,13 +58,19 @@ ABOUT_HTML = f"""
 tank&times;element heatmaps and correlation/association maps, and screen
 tank compositions for vitrification (glass immobilization) -- including
 element&rarr;oxide conversion and network-structure estimates.</p>
-<p>Ember's concept &mdash; a focused, single-purpose data tool for a specific
-DOE dataset &mdash; was inspired by PNNL's
-<a href="https://phoenix.pnnl.gov/phoenix/apps/gallery/index.html">Phoenix platform</a>,
-a gallery of internally-developed PNNL data-science applications. Ember is an
-independent project and is not produced by, affiliated with, or endorsed by
-PNNL or the Phoenix platform.</p>
-<p>Source: <code>github.com/sams808/Hanford</code></p>
+<h3>Data source</h3>
+<p>The bundled composition data (<code>Hanford.csv</code>, <code>Tank_attributes.csv</code>) comes from
+PNNL's <a href="https://phoenix.pnnl.gov">PHOENIX</a> (Hanford Online Information Exchange), the access
+mechanism for Tri-Party Agreement tank waste databases:</p>
+<p style="font-size:10pt; color:#666">
+Brulotte, P.J., and Christensen, K.C.. "Tri-Party Agreement databases, access mechanism and
+procedures". United States. doi:10.2172/10112540. https://www.osti.gov/servlets/purl/10112540<br><br>
+"PNNL Hanford Online Information Exchange (PHOENIX)", Pacific Northwest National Laboratory,
+Richland WA, U.S. Department of Energy. https://phoenix.pnnl.gov
+</p>
+<p>{APP_NAME} (this application) is an independent project, not produced by, affiliated with, or
+endorsed by PNNL or the U.S. Department of Energy.</p>
+<p>Source: <code>github.com/sams808/EMBER</code></p>
 <h3>Built on</h3>
 <p>polars &middot; pandas &middot; numpy &middot; matplotlib &middot; seaborn &middot;
 scipy &middot; scikit-learn &middot; networkx &middot; plotly &middot; xraydb &middot; PySide6</p>

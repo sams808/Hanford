@@ -13,9 +13,9 @@ htmlcov/
 .vscode/
 .idea/
 
-# Data files - not distributed with the app, auto-detected next to it at runtime
-Hanford.csv
-Tank_attributes.csv
+# Hanford.csv/Tank_attributes.csv are committed (see PHOENIX citation in
+# NOTICE.md / About dialog) so the app works out of the box after a clone.
+# Cache files derived from them at runtime are not.
 *.parquet
 
 # App-generated output
