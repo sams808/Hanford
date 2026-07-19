@@ -1,42 +1,47 @@
 """
 qt_theme.py — one centralized stylesheet and palette for the whole app.
 
-Structure mirrors the sibling Dataapp project's qt_theme.py (same object
-names, same widget-class rules, same "matplotlib stays unthemed" rule) so
-the two apps feel like a consistent product family, but with Ember's own
-warm accent instead of Dataapp's cool teal.
+Structure mirrors the sibling Dataapp/PRISM project's qt_theme.py (same
+object names, same widget-class rules, same "matplotlib stays unthemed"
+rule) so the two apps feel like a consistent product family.
+
+Sober-by-default, color-on-purpose: backgrounds/borders/text are neutral
+grays throughout (not a warm-tinted theme), and the accent color is
+reserved for things the user acts on -- primary buttons, checkboxes,
+focus rings, and the current nav item -- rather than painted across
+large surface areas.
 """
 from __future__ import annotations
 
 PALETTE = {
-    "bg": "#f6f1ec",
-    "bg_alt": "#ede4da",
-    "card": "#fffaf5",
-    "ink": "#2a1f18",
-    "muted": "#7d6b5d",
-    "border": "#e0d3c4",
+    "bg": "#f7f7f8",
+    "bg_alt": "#eef0f2",
+    "card": "#ffffff",
+    "ink": "#20242a",
+    "muted": "#6b7280",
+    "border": "#d9dce1",
     "accent": "#c1502e",
     "accent_hover": "#a13f22",
     "accent_ink": "#ffffff",
-    "selection_bg": "#f4ddd0",
+    "selection_bg": "#eef0f2",
     "warn": "#b8860b",
-    "critical": "#a8302a",
-    "critical_bg": "#f6dfdc",
+    "critical": "#c0392b",
+    "critical_bg": "#fbeae8",
 }
 
 # Applies to the Qt chrome only -- matplotlib plot areas deliberately stay
 # white in both modes, so what's on screen always matches PNG/SVG/PDF export.
 DARK_PALETTE = {
-    "bg": "#201a16",
-    "bg_alt": "#170f0c",
-    "card": "#2b231d",
-    "ink": "#ecdfd3",
-    "muted": "#b3a08d",
-    "border": "#40332a",
+    "bg": "#1c1e22",
+    "bg_alt": "#16181b",
+    "card": "#24272b",
+    "ink": "#e6e8ea",
+    "muted": "#9aa0a8",
+    "border": "#34383e",
     "accent": "#e0703f",
     "accent_hover": "#f28a5c",
     "accent_ink": "#1a0e08",
-    "selection_bg": "#4a2f22",
+    "selection_bg": "#2b2f34",
     "warn": "#d9a441",
     "critical": "#e0645a",
     "critical_bg": "#3d211d",
@@ -69,10 +74,13 @@ def build_stylesheet(palette: dict = PALETTE) -> str:
         padding: 9px 12px;
         border-radius: 4px;
         margin: 2px 4px;
+        border-left: 3px solid transparent;
     }}
     QListWidget#NavList::item:selected {{
-        background: {p['accent']};
-        color: {p['accent_ink']};
+        background: {p['selection_bg']};
+        color: {p['accent']};
+        border-left: 3px solid {p['accent']};
+        font-weight: 600;
     }}
     QListWidget#NavList::item:hover:!selected {{
         background: {p['selection_bg']};
@@ -175,7 +183,10 @@ def build_stylesheet(palette: dict = PALETTE) -> str:
     }}
     QTabBar::tab:selected {{
         background: {p['card']};
+        color: {p['accent']};
         font-weight: 600;
+        border-bottom: 2px solid {p['accent']};
+        margin-bottom: -1px;
     }}
     QSplitter::handle {{
         background: {p['border']};

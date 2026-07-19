@@ -1,7 +1,8 @@
 """
 make_logo.py — generates Ember's placeholder brand assets into assets/:
-  ember_logo.png (512x512, window/taskbar icon source)
-  ember.ico      (multi-size Windows icon, for the exe + title bar)
+  ember_logo.png   (512x512, window/taskbar icon source)
+  ember_splash.png (720x420, startup splash)
+  ember.ico        (multi-size Windows icon, for the exe + title bar)
 
 Design: a simple layered flame/ember glow (deep red core -> the app's own
 warm accent orange -> a bright yellow-white tip), on the same dark ink
@@ -59,6 +60,20 @@ def make_logo(path: str, px: int = 512) -> None:
     plt.close(fig)
 
 
+def make_splash(path: str, w: int = 720, h: int = 420) -> None:
+    fig = plt.figure(figsize=(w / 100, h / 100), dpi=100)
+    fig.patch.set_facecolor(INK)
+    ax = fig.add_axes([0.02, 0.18, 0.5, 0.8])
+    _draw_mark(ax)
+    fig.text(0.55, 0.60, "Ember", color="white", fontsize=52, fontweight="bold",
+             family="DejaVu Sans", va="center")
+    fig.text(0.55, 0.42, "Hanford tank composition &\nvitrification screening",
+             color="#c9a68f", fontsize=14, va="center")
+    fig.text(0.05, 0.07, "Data via PNNL PHOENIX", color="#8a7264", fontsize=11)
+    fig.savefig(path, facecolor=INK)
+    plt.close(fig)
+
+
 def make_ico(png_path: str, ico_path: str) -> None:
     from PIL import Image
     img = Image.open(png_path)
@@ -69,5 +84,6 @@ if __name__ == "__main__":
     os.makedirs(ASSETS, exist_ok=True)
     logo = os.path.join(ASSETS, "ember_logo.png")
     make_logo(logo)
+    make_splash(os.path.join(ASSETS, "ember_splash.png"))
     make_ico(logo, os.path.join(ASSETS, "ember.ico"))
     print("assets written to", ASSETS)

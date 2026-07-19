@@ -213,4 +213,4 @@ Developed in the NOME group, Washington State University.
 Supported by the U.S. Department of Energy.
 Thanks to Prof. John S. McCloy.
 
-Concept inspired by PNNL's Phoenix platform gallery (see the disclaimer at the top of this notice). Built on polars, pandas, numpy, matplotlib, seaborn, scipy, scikit-learn, networkx, plotly, xraydb, and PySide6. Optical basicity values: Rodriguez & McCloy, PNNL-20184/EMSP-RPT-003 (2011). GlassNet: Cassar, *Ceramics International* 49 (2023) 36013, trained on SciGlass.
+Composition data via PNNL's PHOENIX (see the citation at the top of this notice). Built on polars, pandas, numpy, matplotlib, seaborn, scipy, scikit-learn, networkx, plotly, xraydb, and PySide6. Optical basicity values: Rodriguez & McCloy, PNNL-20184/EMSP-RPT-003 (2011). GlassNet: Cassar, *Ceramics International* 49 (2023) 36013, trained on SciGlass.
