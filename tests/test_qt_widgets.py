@@ -1,8 +1,63 @@
 import numpy as np
 import pandas as pd
 
-from qt_widgets import DataFrameTableModel, StatusLogger, _format_cell
+from qt_widgets import DataFrameTableModel, PlotWidget, StatusLogger, _format_cell
 from PySide6.QtCore import Qt
+
+
+class TestPlotWidgetSetFigureSizeInches:
+    """Figure.set_size_inches(..., forward=True) is a documented no-op for
+    a canvas embedded directly (not via pyplot) -- this codebase's canvases
+    all have canvas.manager is None, so forward=True never actually resizes
+    anything on screen. set_figure_size_inches() is the real fix: it must
+    resize the canvas widget itself, not just the Figure's internal bbox."""
+
+    def test_grows_canvas_pixel_size_to_match_figure_inches(self, qtbot):
+        panel = PlotWidget(figsize=(6.0, 4.5), dpi=100)
+        qtbot.addWidget(panel)
+        start_height = panel.canvas.height()
+
+        panel.set_figure_size_inches(6.0, 12.0)
+
+        assert panel.canvas.height() > start_height
+        assert panel.canvas.get_width_height() == (
+            int(panel.figure.bbox.width), int(panel.figure.bbox.height),
+        )
+
+    def test_figure_bbox_inches_updated(self, qtbot):
+        panel = PlotWidget(figsize=(6.0, 4.5), dpi=100)
+        qtbot.addWidget(panel)
+        panel.set_figure_size_inches(7.0, 9.0)
+        assert tuple(panel.figure.get_size_inches()) == (7.0, 9.0)
+
+
+class TestPlotWidgetAvailableContentHeightInches:
+    """A figure grown taller than the panel doesn't scroll into view --
+    there's no scroll area around the canvas -- it just clips silently.
+    Callers that grow figure height based on data size need to know how
+    much is actually visible so they can cap at that instead."""
+
+    def test_none_when_not_shown(self, qtbot):
+        # qtbot.addWidget() alone doesn't show the widget, so height()
+        # would just be a Qt placeholder default, not real available space.
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        assert panel.available_content_height_inches() is None
+
+    def test_positive_value_when_shown(self, qtbot):
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        panel.resize(800, 1000)
+        panel.show()
+        qtbot.waitExposed(panel)
+        qtbot.wait(20)  # let any deferred draw_idle from show()/resize() flush
+        try:
+            available = panel.available_content_height_inches()
+            assert available is not None
+            assert 0 < available < 1000 / panel.figure.dpi
+        finally:
+            panel.hide()
+            qtbot.wait(20)  # settle before qtbot's teardown deletes the widget
 
 
 class TestFormatCell:

@@ -83,6 +83,32 @@ class PlotWidget(QWidget):
         fn(*args, **kwargs)
         self.canvas.draw_idle()
 
+    def set_figure_size_inches(self, width: float, height: float) -> None:
+        """Resize the figure AND the canvas widget to match. Figure.set_size_
+        inches(..., forward=True) is a no-op for a canvas embedded directly
+        (as this one is, not via pyplot): forward=True only resizes anything
+        through `canvas.manager`, which is a pyplot-only concept and is
+        always None here -- so callers that want an on-screen size change
+        (e.g. a plot with more rows needing a taller figure to keep labels
+        legible) must go through this method instead of calling
+        figure.set_size_inches() directly."""
+        self.figure.set_size_inches(width, height)
+        self.canvas.resize(*self.canvas.get_width_height())
+
+    def available_content_height_inches(self) -> Optional[float]:
+        """Approximate vertical room left for the canvas within this
+        widget's CURRENT on-screen size, after the toolbar -- or None if
+        the widget isn't actually shown yet (its height() is then just a
+        Qt default/placeholder, not real available space). Callers that
+        grow a figure's height based on data size (more rows -> taller
+        figure, to keep labels legible) should cap it at this, since there
+        is no scroll area around the canvas: a figure taller than what's
+        visible doesn't scroll into view, it just gets silently clipped."""
+        if not self.isVisible():
+            return None
+        chrome_px = self.toolbar.height() + 24  # ~one line for coords_label
+        return max(self.height() - chrome_px, 0) / self.figure.dpi
+
     def clear(self, title: str = "") -> None:
         self.ax.clear()
         self.ax.grid(alpha=0.25)

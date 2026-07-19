@@ -27,7 +27,7 @@ class TestLoadNoticeMarkdown:
     def test_loads_real_notice_file(self):
         text = qh.load_notice_markdown()
         assert "Ember" in text
-        assert "Phoenix" in text
+        assert "PHOENIX" in text
 
     def test_missing_file_returns_fallback_not_crash(self, monkeypatch, tmp_path):
         monkeypatch.setattr(qh, "notice_path", lambda: str(tmp_path / "does_not_exist.md"))

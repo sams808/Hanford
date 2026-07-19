@@ -16,13 +16,27 @@ import pandas as pd
 from elements import normalize_element_symbol
 from matrix_science import log10_safe, square_matrix_lookup
 
-try:
-    import seaborn as sns
-except Exception:  # pragma: no cover - exercised via a dedicated sns=None test
-    sns = None
-
 ACCENT_COLOR = "#c1502e"
 BASE_COLOR = "0.55"
+
+# seaborn is imported lazily (on first actual use, via _ensure_seaborn()
+# below) rather than at module scope: this module is imported eagerly at
+# app startup by nearly every workspace, and seaborn alone costs ~2s of
+# cold-import time -- most of it ipywidgets/IPython, pulled in for Jupyter
+# widget support this desktop app never touches. Most sessions never select
+# a seaborn plot style, so most sessions shouldn't pay that cost at launch.
+_SEABORN_UNSET = object()
+sns = _SEABORN_UNSET
+
+
+def _ensure_seaborn() -> None:
+    global sns
+    if sns is _SEABORN_UNSET:
+        try:
+            import seaborn as _seaborn_module
+            sns = _seaborn_module
+        except Exception:  # pragma: no cover - exercised via a dedicated sns=None test
+            sns = None
 
 
 def numeric_plot_series(series: pd.Series) -> pd.Series:
@@ -103,6 +117,21 @@ def plot_barh(
     pdf["_plot_label"] = make_unique_plot_labels(pdf, label_col)
     pdf = pdf.iloc[::-1]  # reverse after sort/head so the largest value is at the top of barh
 
+    # Scale figure height with the bar count, the same way plot_heatmap
+    # scales with tank/element count below -- a fixed-height figure crams
+    # every label into the same vertical space regardless of top_n, which
+    # is what makes a 40-bar chart's y-tick labels overlap into
+    # illegibility even though the panel has plenty of unused space below.
+    # Capped at whatever's actually visible: there's no scroll area around
+    # the canvas, so a figure taller than the panel doesn't scroll into
+    # view, it silently clips instead.
+    height = min(max(4.5, len(pdf) * 0.26), 16.0)
+    available = panel.available_content_height_inches()
+    if available is not None and available >= 3.0:
+        height = min(height, available)
+    width = panel.figure.get_size_inches()[0]
+    panel.set_figure_size_inches(width, height)
+
     panel.ax.clear()
     ax = panel.ax
     colors = color_by_highlight(
@@ -143,7 +172,7 @@ def plot_heatmap(panel, wide: pd.DataFrame, unit: str, mode: str, title: str) ->
     panel.figure.clear()
     height = min(max(5, len(labels_y) * 0.10), 18)
     width = min(max(8, len(elements) * 0.25), 18)
-    panel.figure.set_size_inches(width, height, forward=True)
+    panel.set_figure_size_inches(width, height)
     ax = panel.figure.add_subplot(111)
     im = ax.imshow(arr, aspect="auto", interpolation="nearest")
     ax.set_xticks(np.arange(len(elements)))
@@ -255,6 +284,7 @@ def _aligned_projection_values(elements: Sequence[str], totals: Optional[Dict[st
 
 
 def seaborn_available() -> bool:
+    _ensure_seaborn()
     return sns is not None
 
 
@@ -278,6 +308,7 @@ def plot_correlation_heatmap(
     arr = data.to_numpy(dtype=float)
     upper_mask = np.triu(np.ones_like(arr, dtype=bool), k=1)
     style_norm = (style or "").lower()
+    _ensure_seaborn()
     use_seaborn = ("seaborn" in style_norm) and (sns is not None)
     with_projection = ("projection" in style_norm or "total" in style_norm)
 
@@ -292,7 +323,7 @@ def plot_correlation_heatmap(
     if use_seaborn and with_projection:
         proj_raw = _aligned_projection_values(elements, totals)
         proj = np.log10(proj_raw + 1.0)
-        panel.figure.set_size_inches(base_size + 2.5, base_size + 1.8, forward=True)
+        panel.set_figure_size_inches(base_size + 2.5, base_size + 1.8)
         gs = panel.figure.add_gridspec(
             2, 2, width_ratios=[base_size, 2.2], height_ratios=[1.4, base_size], wspace=0.05, hspace=0.05,
         )
@@ -330,7 +361,7 @@ def plot_correlation_heatmap(
             ax_right.spines[spine].set_visible(False)
         panel.ax = ax
     elif use_seaborn:
-        panel.figure.set_size_inches(base_size, base_size, forward=True)
+        panel.set_figure_size_inches(base_size, base_size)
         ax = panel.figure.add_subplot(111)
         sns.heatmap(
             data, mask=upper_mask, vmin=-1, vmax=1, cmap="vlag", center=0, square=True,
@@ -345,7 +376,7 @@ def plot_correlation_heatmap(
         ax.tick_params(axis="y", rotation=0, labelsize=8 if n <= 55 else 6)
         panel.ax = ax
     else:
-        panel.figure.set_size_inches(base_size, base_size, forward=True)
+        panel.set_figure_size_inches(base_size, base_size)
         ax = panel.figure.add_subplot(111)
         masked = np.ma.array(arr, mask=upper_mask)
         cmap = matplotlib.colormaps.get_cmap("coolwarm").copy()
@@ -443,6 +474,7 @@ def plot_target_vs_total(panel, data: pd.DataFrame, title: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _seaborn_available_or_message(panel) -> bool:
+    _ensure_seaborn()
     if sns is None:
         panel.show_message("Seaborn is not installed. Run: python -m pip install seaborn")
         return False
@@ -457,6 +489,7 @@ def _use_coherent_colors(color_mode: str = "Basic") -> bool:
 
 
 def _set_seaborn_theme(color_mode: str = "Basic") -> None:
+    _ensure_seaborn()
     if sns is None:
         return
     if _use_coherent_colors(color_mode):
@@ -532,7 +565,7 @@ def plot_seaborn_lower_triangle_matrix(
         if totals is not None and not totals.empty and "Element" in totals.columns and "Total_inventory_kg" in totals.columns:
             total_map = {str(r.Element): float(r.Total_inventory_kg or 0.0) for r in totals.itertuples(index=False)}
         proj = np.array([math.log10(max(total_map.get(e, 0.0), 0.0) + 1.0) for e in elements], dtype=float)
-        panel.figure.set_size_inches(base_size + 2.5, base_size + 1.8, forward=True)
+        panel.set_figure_size_inches(base_size + 2.5, base_size + 1.8)
         gs = panel.figure.add_gridspec(2, 2, width_ratios=[base_size, 2.2], height_ratios=[1.4, base_size], wspace=0.05, hspace=0.05)
         ax_top = panel.figure.add_subplot(gs[0, 0])
         ax = panel.figure.add_subplot(gs[1, 0])
@@ -546,7 +579,7 @@ def plot_seaborn_lower_triangle_matrix(
         for spine in ("top", "right"):
             ax_top.spines[spine].set_visible(False)
     else:
-        panel.figure.set_size_inches(base_size, base_size, forward=True)
+        panel.set_figure_size_inches(base_size, base_size)
         ax = panel.figure.add_subplot(111)
 
     sns.heatmap(
@@ -600,7 +633,7 @@ def plot_seaborn_top_associations(panel, pair_stats: pd.DataFrame, top_n: int = 
     pdf["Pair"] = pdf["Element_A"].astype(str) + "-" + pdf["Element_B"].astype(str) + "  (n=" + pdf["N_both_present"].astype(str) + ")"
     pdf = pdf.iloc[::-1]
     panel.ax.clear()
-    panel.figure.set_size_inches(9, max(5, min(16, 0.32 * len(pdf) + 2)), forward=True)
+    panel.set_figure_size_inches(9, max(5, min(16, 0.32 * len(pdf) + 2)))
     ax = panel.ax
     palette_name = _pair_palette_name(mode, color_mode)
     if palette_name:
@@ -646,7 +679,7 @@ def plot_seaborn_pair_matrix(
     n = len(clean)
     size = min(max(2.0 * n, 7), 18)
     panel.figure.clear()
-    panel.figure.set_size_inches(size, size, forward=True)
+    panel.set_figure_size_inches(size, size)
     axes = panel.figure.subplots(n, n, squeeze=False)
     raw = raw_matrix.set_index("WasteSiteId") if raw_matrix is not None and not raw_matrix.empty else pd.DataFrame()
     for i, y in enumerate(clean):
@@ -721,7 +754,7 @@ def plot_seaborn_joint_first_two(panel, metric_matrix: pd.DataFrame, elements: S
         panel.show_message("No finite values for joint plot")
         return
     panel.figure.clear()
-    panel.figure.set_size_inches(8, 8, forward=True)
+    panel.set_figure_size_inches(8, 8)
     gs = panel.figure.add_gridspec(2, 2, width_ratios=[5, 1.2], height_ratios=[1.2, 5], wspace=0.05, hspace=0.05)
     ax_top = panel.figure.add_subplot(gs[0, 0])
     ax = panel.figure.add_subplot(gs[1, 0])
@@ -773,7 +806,7 @@ def plot_seaborn_tank_similarity(panel, tank_similarity: pd.DataFrame, raw_matri
         return
     panel.figure.clear()
     base_size = min(max(7, n * 0.23), 18)
-    panel.figure.set_size_inches(base_size, base_size, forward=True)
+    panel.set_figure_size_inches(base_size, base_size)
     ax = panel.figure.add_subplot(111)
     mask = np.triu(np.ones_like(data.to_numpy(dtype=float), dtype=bool), k=1)
     sns.heatmap(
@@ -813,7 +846,7 @@ def plot_seaborn_tank_element_map(panel, raw_matrix: pd.DataFrame, elements: Seq
     panel.figure.clear()
     width = min(max(7, len(clean) * 0.5), 18)
     height = min(max(6, len(raw) * 0.16), 18)
-    panel.figure.set_size_inches(width, height, forward=True)
+    panel.set_figure_size_inches(width, height)
     ax = panel.figure.add_subplot(111)
     sns.heatmap(data, cmap=_sequential_cmap(color_mode), cbar_kws={"label": label}, linewidths=0.0, ax=ax)
     ax.set_title(f"Tank x selected element map - kg only - top {len(raw)} tanks")
@@ -848,7 +881,7 @@ def plot_seaborn_presence_patterns(panel, presence_matrix: pd.DataFrame, element
         return
     counts = counts.iloc[::-1]
     panel.ax.clear()
-    panel.figure.set_size_inches(10, max(5, min(16, 0.32 * len(counts) + 2)), forward=True)
+    panel.set_figure_size_inches(10, max(5, min(16, 0.32 * len(counts) + 2)))
     ax = panel.ax
     sns.barplot(
         data=counts, y="Combination", x="N_tanks", hue="N_selected_elements_present",
@@ -875,7 +908,7 @@ def plot_seaborn_stats_dashboard(panel, element_stats: pd.DataFrame, pair_stats:
     elems = element_stats.sort_values("Total_inventory_kg", ascending=False).head(int(top_n)).copy()
     pairs = pair_stats.sort_values("PreferredAssociationScore_proxy", ascending=False).head(int(top_n)).copy() if pair_stats is not None and not pair_stats.empty else pd.DataFrame()
     panel.figure.clear()
-    panel.figure.set_size_inches(14, 10, forward=True)
+    panel.set_figure_size_inches(14, 10)
     gs = panel.figure.add_gridspec(2, 2, wspace=0.32, hspace=0.35)
     ax1 = panel.figure.add_subplot(gs[0, 0])
     ax2 = panel.figure.add_subplot(gs[0, 1])
@@ -966,7 +999,7 @@ def plot_dendrogram(panel, cluster_linkage, cluster_labels: Sequence[str], color
     n = len(cluster_labels)
     panel.figure.clear()
     base_size = min(max(6.5, n * 0.28), 19.0)
-    panel.figure.set_size_inches(base_size, 6.0, forward=True)
+    panel.set_figure_size_inches(base_size, 6.0)
     ax = panel.figure.add_subplot(111)
     dendrogram(
         cluster_linkage, labels=list(cluster_labels), ax=ax, leaf_rotation=90,
@@ -995,7 +1028,7 @@ def plot_partial_correlation_comparison(panel, partial_df: pd.DataFrame, raw_df:
     cmap = _corr_cmap(color_mode)
     panel.figure.clear()
     base_size = min(max(5.5, n * 0.32), 14.0)
-    panel.figure.set_size_inches(base_size * 2 + 1.2, base_size + 1.0, forward=True)
+    panel.set_figure_size_inches(base_size * 2 + 1.2, base_size + 1.0)
     ax1 = panel.figure.add_subplot(1, 2, 1)
     ax2 = panel.figure.add_subplot(1, 2, 2)
     mask1 = np.triu(np.ones_like(raw_data.to_numpy(dtype=float), dtype=bool), k=1)

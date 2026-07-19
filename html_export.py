@@ -5,6 +5,11 @@ element-association network graph. Each embeds plotly.js directly
 (include_plotlyjs=True) so the exported file works fully offline -- no CDN
 dependency once written to disk. The Qt layer opens the result via
 os.startfile().
+
+plotly.graph_objects is imported lazily inside each export function rather
+than at module scope: this module is imported eagerly at app startup, and
+cold-importing plotly costs real time that only the sessions which actually
+use "Export interactive HTML" should pay.
 """
 from __future__ import annotations
 
@@ -12,7 +17,6 @@ from pathlib import Path
 from typing import Optional, Union
 
 import pandas as pd
-import plotly.graph_objects as go
 
 from matrix_science import square_matrix_lookup
 
@@ -23,6 +27,8 @@ def export_correlation_heatmap_html(
     """Full (not lower-triangle -- Plotly's own hover/zoom makes the
     redundancy harmless and simplifies the trace) correlation heatmap with
     per-cell hover text."""
+    import plotly.graph_objects as go
+
     data, elements = square_matrix_lookup(corr_df)
     if data.empty:
         raise ValueError("No correlation matrix to export.")
@@ -40,6 +46,8 @@ def export_pca_scatter_html(
     path: Union[str, Path], tank_summary: pd.DataFrame, color_by: Optional[str] = None,
     pca_variance: Optional[pd.DataFrame] = None, title: str = "Tank PCA (kg, standardized)",
 ) -> Path:
+    import plotly.graph_objects as go
+
     if tank_summary is None or tank_summary.empty or "PC1" not in tank_summary.columns:
         raise ValueError("No PCA scores to export.")
     var_map = {}
@@ -82,6 +90,8 @@ def export_network_html(
     """Draws the SAME node positions structure_science.element_network
     already computed (nodes carry x/y from a shared spring layout), so this
     view and the matplotlib plot_element_network view always agree."""
+    import plotly.graph_objects as go
+
     if network_nodes is None or network_nodes.empty:
         raise ValueError("No network data to export.")
     positions = {str(r.Element): (float(r.x), float(r.y)) for r in network_nodes.itertuples(index=False)}

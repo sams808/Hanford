@@ -11,19 +11,21 @@ scientifically meaningless. Reuses kg_correlation_workbench for element
 selection/parsing and the correlation/Jaccard/element-stats math, so
 Structure and the Association Workbench always agree on "what counts as
 this element's correlation" for the same inputs.
+
+scipy/sklearn/networkx are imported lazily, inside the functions that use
+them, not at module scope: this module is imported eagerly at app startup
+(via qt_shell -> qt_correlations -> qt_correlations_structure), and these
+three libraries alone cost several seconds of cold-import time that most
+sessions never need paid up front just to reach the Overview page.
 """
 from __future__ import annotations
 
 from itertools import combinations
 from typing import Dict, List, Optional, Sequence, Tuple
 
-import networkx as nx
 import numpy as np
 import pandas as pd
 import polars as pl
-from scipy.cluster.hierarchy import fcluster, linkage
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 
 from correlation_science import kg_correlation_workbench, partial_correlation_value, tank_total_inventory
 from data_model import HanfordDataset
@@ -83,6 +85,9 @@ def tank_pca(metric_matrix: pd.DataFrame, elements: Sequence[str], n_components:
     if len(usable) < 2 or len(vals) < 3 or n_comp < 2:
         return {**empty, "dropped_constant_elements": dropped}
 
+    from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler
+
     scaled = StandardScaler().fit_transform(vals.to_numpy(dtype=float))
     pca = PCA(n_components=n_comp, random_state=0)
     scores = pca.fit_transform(scaled)
@@ -115,6 +120,9 @@ def hierarchical_clusters(
     vals = vals[usable].fillna(0.0)
     if len(usable) < 2 or len(vals) < 3:
         return empty
+
+    from scipy.cluster.hierarchy import fcluster, linkage
+    from sklearn.preprocessing import StandardScaler
 
     scaled = StandardScaler().fit_transform(vals.to_numpy(dtype=float))
     z = linkage(scaled, method=method, metric="euclidean")
@@ -206,6 +214,8 @@ def element_network(
     edges = pd.DataFrame(edge_rows)
     if not edges.empty:
         edges = edges.sort_values("AbsCorrelation", ascending=False).reset_index(drop=True)
+
+    import networkx as nx
 
     graph = nx.Graph()
     graph.add_nodes_from(all_elements)

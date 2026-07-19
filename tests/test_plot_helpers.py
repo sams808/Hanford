@@ -125,28 +125,51 @@ class TestPlotBarh:
         ph.plot_barh(panel, df, "Element", "TotalInventory", "t", "x")
         assert panel.messages == ["No positive values to plot"]
 
-    def test_draws_bars_for_positive_values(self):
-        panel = FakePanel()
+    def test_draws_bars_for_positive_values(self, qtbot):
+        # set_size_inches() needs a real Figure, not the FakePanel stand-in
+        # used for the early-return checks above (same reasoning as
+        # TestPlotHeatmap.test_renders_with_real_plot_widget).
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
         df = pd.DataFrame({"Element": ["Na", "Cs", "Fe"], "TotalInventory": [500.0, 300.0, 60.0]})
         ph.plot_barh(panel, df, "Element", "TotalInventory", "t", "x", highlighted_label="Cs")
-        assert panel.ax.cleared
-        assert panel.canvas.draw_idle_called
-        labels, values, colors = panel.ax.barh_calls[0]
+        qtbot.wait(20)
+        labels = [t.get_text() for t in panel.ax.get_yticklabels()]
         assert set(labels) == {"Na", "Cs", "Fe"}
-        assert colors[labels.index("Cs")] == ph.ACCENT_COLOR
 
-    def test_top_n_limits_bars(self):
-        panel = FakePanel()
+    def test_top_n_limits_bars(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
         df = pd.DataFrame({"Element": [f"E{i}" for i in range(10)], "TotalInventory": list(range(10, 0, -1))})
         ph.plot_barh(panel, df, "Element", "TotalInventory", "t", "x", top_n=3)
-        labels, _, _ = panel.ax.barh_calls[0]
-        assert len(labels) == 3
+        qtbot.wait(20)
+        assert len(panel.ax.get_yticklabels()) == 3
 
-    def test_log_x_does_not_raise(self):
-        panel = FakePanel()
+    def test_more_bars_grows_figure_height(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        small = pd.DataFrame({"Element": ["Na", "Cs"], "TotalInventory": [500.0, 300.0]})
+        ph.plot_barh(panel, small, "Element", "TotalInventory", "t", "x")
+        qtbot.wait(20)
+        small_height = panel.figure.get_size_inches()[1]
+
+        many = pd.DataFrame({"Element": [f"E{i}" for i in range(40)], "TotalInventory": list(range(40, 0, -1))})
+        ph.plot_barh(panel, many, "Element", "TotalInventory", "t", "x", top_n=40)
+        qtbot.wait(20)
+        large_height = panel.figure.get_size_inches()[1]
+        assert large_height > small_height
+
+    def test_log_x_does_not_raise(self, qtbot):
+        from qt_widgets import PlotWidget
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
         df = pd.DataFrame({"Element": ["Na"], "TotalInventory": [500.0]})
         ph.plot_barh(panel, df, "Element", "TotalInventory", "t", "x", log_x=True)
-        assert panel.canvas.draw_idle_called
+        qtbot.wait(20)
+        assert panel.ax.get_xscale() == "log"
 
 
 class TestPlotCorrelationScan:

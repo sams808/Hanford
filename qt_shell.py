@@ -15,7 +15,7 @@ from typing import Dict, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QCheckBox, QFileDialog, QListWidget, QListWidgetItem,
+    QApplication, QCheckBox, QFileDialog, QListWidget, QListWidgetItem,
     QMainWindow, QMessageBox, QStackedWidget, QToolBar, QVBoxLayout, QWidget,
 )
 
@@ -111,23 +111,39 @@ class EmberMainWindow(QMainWindow):
         sidebar_layout.addWidget(self.nav)
         outer.addWidget(sidebar)
 
+        # Building all 8 pages (each with its own matplotlib figures/tables)
+        # is the single most expensive part of startup -- a couple of
+        # seconds with nothing pumping the Windows message queue is enough
+        # to trip the OS's "Not Responding" ghost-window detector on
+        # whatever window is currently visible (the splash screen, during
+        # qt_main's startup sequence). Pumping events between each page
+        # keeps that queue draining without changing what gets built.
+        pump = QApplication.processEvents
         self.stack = QStackedWidget()
         self.overview_page = OverviewPage(self)
         self.stack.addWidget(self.overview_page)
+        pump()
         self.explorer_page = ExplorerPage(self)
         self.stack.addWidget(self.explorer_page)
+        pump()
         self.tank_attrs_page = TankAttributesPage(self)
         self.stack.addWidget(self.tank_attrs_page)
+        pump()
         self.tank_explorer_page = TankExplorerPage(self)
         self.stack.addWidget(self.tank_explorer_page)
+        pump()
         self.heatmaps_page = HeatmapPage(self)
         self.stack.addWidget(self.heatmaps_page)
+        pump()
         self.correlations_page = CorrelationsPage(self)
         self.stack.addWidget(self.correlations_page)
+        pump()
         self.vitrification_page = VitrificationPage(self)
         self.stack.addWidget(self.vitrification_page)
+        pump()
         self.debug_page = DebugPage(self)
         self.stack.addWidget(self.debug_page)
+        pump()
         outer.addWidget(self.stack, 1)
 
         # Nav row -> page by NAME: the rail order and the stack's
