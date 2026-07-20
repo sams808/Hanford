@@ -23,6 +23,7 @@ from data_model import HanfordDataset
 from qt_correlations import CorrelationsPage
 from qt_debug import DebugPage
 from qt_explorer import ExplorerPage
+from qt_figure_composer import FigureComposerPage
 from qt_heatmap import HeatmapPage
 from qt_help import ABOUT_HTML, APP_NAME, APP_VERSION, HelpDialog, asset_path
 from qt_overview import OverviewPage
@@ -39,11 +40,12 @@ NAV_TANK_EXPLORER = "Tank Explorer"
 NAV_HEATMAPS = "Heatmaps"
 NAV_CORRELATIONS = "Correlations"
 NAV_VITRIFICATION = "Vitrification"
+NAV_FIGURE_COMPOSER = "Figure Composer"
 NAV_DEBUG = "Debug / Export"
 
 NAV_ITEMS = [
     NAV_OVERVIEW, NAV_EXPLORER, NAV_TANK_ATTRS, NAV_TANK_EXPLORER,
-    NAV_HEATMAPS, NAV_CORRELATIONS, NAV_VITRIFICATION, NAV_DEBUG,
+    NAV_HEATMAPS, NAV_CORRELATIONS, NAV_VITRIFICATION, NAV_FIGURE_COMPOSER, NAV_DEBUG,
 ]
 
 
@@ -111,7 +113,7 @@ class EmberMainWindow(QMainWindow):
         sidebar_layout.addWidget(self.nav)
         outer.addWidget(sidebar)
 
-        # Building all 8 pages (each with its own matplotlib figures/tables)
+        # Building all 9 pages (each with its own matplotlib figures/tables)
         # is the single most expensive part of startup -- a couple of
         # seconds with nothing pumping the Windows message queue is enough
         # to trip the OS's "Not Responding" ghost-window detector on
@@ -141,6 +143,9 @@ class EmberMainWindow(QMainWindow):
         self.vitrification_page = VitrificationPage(self)
         self.stack.addWidget(self.vitrification_page)
         pump()
+        self.figure_composer_page = FigureComposerPage(self)
+        self.stack.addWidget(self.figure_composer_page)
+        pump()
         self.debug_page = DebugPage(self)
         self.stack.addWidget(self.debug_page)
         pump()
@@ -157,6 +162,7 @@ class EmberMainWindow(QMainWindow):
             NAV_HEATMAPS: self.heatmaps_page,
             NAV_CORRELATIONS: self.correlations_page,
             NAV_VITRIFICATION: self.vitrification_page,
+            NAV_FIGURE_COMPOSER: self.figure_composer_page,
             NAV_DEBUG: self.debug_page,
         }
         self.nav.setCurrentRow(0)

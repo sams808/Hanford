@@ -10,6 +10,7 @@ workspaces, so this is a genuine, justified addition.
 from __future__ import annotations
 
 from datetime import datetime
+from io import BytesIO
 from typing import Any, Callable, List, Optional
 
 import numpy as np
@@ -43,6 +44,8 @@ class PlotWidget(QWidget):
         self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvasQTAgg(self.figure)
         self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction("→ Figure Composer", self._send_to_composer)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -193,6 +196,32 @@ class PlotWidget(QWidget):
         finally:
             self.figure.set_size_inches(*old_size)
             self.canvas.draw_idle()
+
+    def capture_png(self, dpi: int = 300) -> bytes:
+        """Renders the current figure to PNG bytes at a fixed DPI,
+        independent of the on-screen zoom/size -- used by "-> Figure
+        Composer" so a panel's resolution in the combined figure doesn't
+        depend on how big the source plot happened to be on screen when
+        captured."""
+        buf = BytesIO()
+        self.figure.savefig(buf, format="png", dpi=dpi, facecolor="white", bbox_inches="tight")
+        return buf.getvalue()
+
+    def suggested_caption(self) -> str:
+        """The figure's suptitle if it has one (used by the two-marginal-
+        bar correlation heatmaps, where an axes-level title would collide
+        with the top bar chart), otherwise the main axes' own title."""
+        suptitle = self.figure.get_suptitle()
+        if suptitle:
+            return suptitle
+        if self.ax is not None:
+            return self.ax.get_title() or ""
+        return ""
+
+    def _send_to_composer(self) -> None:
+        from composer_store import store
+        caption = self.suggested_caption()
+        store.add(self.capture_png(), caption, source=caption)
 
 
 class StatusLogger(QObject):

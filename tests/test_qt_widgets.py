@@ -60,6 +60,62 @@ class TestPlotWidgetAvailableContentHeightInches:
             qtbot.wait(20)  # settle before qtbot's teardown deletes the widget
 
 
+class TestPlotWidgetCapturePng:
+    def test_returns_valid_png_bytes(self, qtbot):
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        panel.ax.plot([1, 2, 3], [1, 4, 9])
+        data = panel.capture_png()
+        assert isinstance(data, bytes)
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
+
+    def test_dpi_affects_output_size(self, qtbot):
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        panel.ax.plot([1, 2, 3], [1, 4, 9])
+        low = panel.capture_png(dpi=50)
+        high = panel.capture_png(dpi=300)
+        assert len(high) > len(low)
+
+
+class TestPlotWidgetSuggestedCaption:
+    def test_uses_axes_title_when_no_suptitle(self, qtbot):
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        panel.ax.set_title("My plot title")
+        assert panel.suggested_caption() == "My plot title"
+
+    def test_uses_suptitle_when_present(self, qtbot):
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        panel.ax.set_title("axes title")
+        panel.figure.suptitle("figure suptitle")
+        assert panel.suggested_caption() == "figure suptitle"
+
+    def test_empty_string_when_no_title_at_all(self, qtbot):
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        assert panel.suggested_caption() == ""
+
+
+class TestPlotWidgetSendToComposer:
+    def test_adds_current_figure_to_the_shared_store(self, qtbot):
+        from composer_store import store
+        store.clear()
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+        panel.ax.set_title("Sent from a test")
+        panel.ax.plot([1, 2], [3, 4])
+
+        panel._send_to_composer()
+
+        items = store.items()
+        assert len(items) == 1
+        assert items[0].caption == "Sent from a test"
+        assert items[0].png_bytes[:8] == b"\x89PNG\r\n\x1a\n"
+        store.clear()
+
+
 class TestFormatCell:
     def test_none(self):
         assert _format_cell(None) == ""

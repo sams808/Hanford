@@ -55,9 +55,12 @@ ABOUT_HTML = f"""
 <h2>{APP_NAME} {APP_VERSION}</h2>
 <p><i>{APP_TAGLINE}</i></p>
 <p>Explore Hanford tank composition data by element and analyte, build
-tank&times;element heatmaps and correlation/association maps, and screen
+tank&times;element heatmaps and correlation/association maps, screen
 tank compositions for vitrification (glass immobilization) -- including
-element&rarr;oxide conversion and network-structure estimates.</p>
+element&rarr;oxide conversion and network-structure estimates -- and combine
+any of the resulting plots into one labeled multi-panel figure with Figure
+Composer. See Help &rarr; Notice for the full manual, including every
+formula behind the vitrification screening tools.</p>
 <h3>Data source</h3>
 <p>The bundled composition data (<code>Hanford.csv</code>, <code>Tank_attributes.csv</code>) comes from
 PNNL's <a href="https://phoenix.pnnl.gov">PHOENIX</a> (Hanford Online Information Exchange), the access
