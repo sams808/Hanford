@@ -10,9 +10,9 @@ from typing import Optional
 
 import pandas as pd
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QSpinBox, QSplitter, QTabWidget, QVBoxLayout,
-    QWidget,
+    QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPushButton, QSpinBox, QSplitter, QTabWidget,
+    QVBoxLayout, QWidget,
 )
 
 import correlation_science as csci
@@ -88,10 +88,10 @@ class WorkbenchTab(QWidget):
         self.min_inv_spin.setRange(0.0, 1e12)
         self.min_inv_spin.setDecimals(6)
         row1.addWidget(self.min_inv_spin)
-        build_btn = QPushButton("Build kg correlation data")
-        build_btn.setObjectName("Primary")
-        build_btn.clicked.connect(self.build_data)
-        row1.addWidget(build_btn)
+        self.build_btn = QPushButton("Build kg correlation data")
+        self.build_btn.setObjectName("Primary")
+        self.build_btn.clicked.connect(self.build_data)
+        row1.addWidget(self.build_btn)
         root.addLayout(row1)
 
         row2 = QHBoxLayout()
@@ -178,6 +178,9 @@ class WorkbenchTab(QWidget):
         if self.dataset is None or not self.dataset.is_loaded():
             QMessageBox.information(self, "Association Workbench", "Load a dataset first.")
             return
+        self.build_btn.setEnabled(False)
+        self.build_btn.setText("Building…")
+        QApplication.processEvents()
         try:
             self.results = csci.kg_correlation_workbench(
                 self.dataset, elements_text=self.elements_edit.text(),
@@ -187,8 +190,12 @@ class WorkbenchTab(QWidget):
                 skip_elements_text=self.skip_edit.text(),
             )
         except ValueError as exc:
+            self.build_btn.setEnabled(True)
+            self.build_btn.setText("Build kg correlation data")
             QMessageBox.warning(self, "Build failed", str(exc))
             return
+        self.build_btn.setEnabled(True)
+        self.build_btn.setText("Build kg correlation data")
         for title_, key in _TABLE_KEY_BY_TITLE.items():
             self._table_views[title_].set_dataframe(self.results.get(key, pd.DataFrame()))
         self.plot_selected()

@@ -2,10 +2,12 @@
 plot_helpers.py — shared matplotlib plotting utilities used by multiple
 workspaces (Element Explorer, Tank Explorer, ...), ported from the old
 app's module-level plot helper functions. Framework-agnostic aside from
-taking a qt_widgets.PlotWidget to draw into.
+taking a qt_widgets.PlotWidget (or figure_composer.ComposerCellPanel, which
+mimics the same small interface) to draw into.
 """
 from __future__ import annotations
 
+import functools
 import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -18,6 +20,26 @@ from matrix_science import log10_safe, square_matrix_lookup
 
 ACCENT_COLOR = "#c1502e"
 BASE_COLOR = "0.55"
+
+
+def composable(fn):
+    """Marks a plot function as reusable by Figure Composer. After a
+    successful render, remembers (fn, args, kwargs) on the panel -- if it
+    has a _set_last_recipe method, which qt_widgets.PlotWidget does and the
+    lightweight FakePanel test doubles in this file's own tests don't --
+    so a later "-> Figure Composer" click can replay this exact call into
+    a combined figure's own subfigure, instead of capturing a raster
+    snapshot of it. This is what lets Figure Composer stay generic across
+    every plot kind without a second, parallel rendering path: it's
+    literally re-invoking this same function later, against a different
+    (subfigure-backed) panel."""
+    @functools.wraps(fn)
+    def wrapper(panel, *args, **kwargs):
+        fn(panel, *args, **kwargs)
+        set_recipe = getattr(panel, "_set_last_recipe", None)
+        if set_recipe is not None:
+            set_recipe(fn, args, kwargs)
+    return wrapper
 
 # seaborn is imported lazily (on first actual use, via _ensure_seaborn()
 # below) rather than at module scope: this module is imported eagerly at
@@ -97,6 +119,7 @@ def make_unique_plot_labels(pdf: pd.DataFrame, label_col: str, unit_col: str = "
     return labels
 
 
+@composable
 def plot_barh(
     panel, data: pd.DataFrame, label_col: str, value_col: str, title: str, xlabel: str,
     top_n: int = 40, highlighted_label: Optional[str] = None, log_x: bool = False,
@@ -144,6 +167,7 @@ def plot_barh(
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_heatmap(panel, wide: pd.DataFrame, unit: str, mode: str, title: str) -> None:
     """Tank x element inventory heatmap. Rebuilds the panel's axes (rather
     than clearing in place) because figure size must scale with the number
@@ -191,6 +215,7 @@ def plot_heatmap(panel, wide: pd.DataFrame, unit: str, mode: str, title: str) ->
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_grouped_tank_profile(panel, data: pd.DataFrame, value_col: str, title: str, top_n: int = 25) -> None:
     """Grouped horizontal bars: one cluster per element, one series per
     tank -- for comparing composition across several selected tanks at once."""
@@ -230,6 +255,7 @@ def plot_grouped_tank_profile(panel, data: pd.DataFrame, value_col: str, title: 
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_correlation_scan(panel, data: pd.DataFrame, target: str, top_n: int = 30) -> None:
     if data is None or data.empty or "PartnerElement" not in data or "Correlation_r" not in data:
         panel.show_message("No correlation scan data")
@@ -283,6 +309,7 @@ def seaborn_available() -> bool:
     return sns is not None
 
 
+@composable
 def plot_correlation_heatmap(
     panel, corr: pd.DataFrame, title: str = "Element correlation heatmap",
     style: str = "Matplotlib lower triangle", totals: Optional[Dict[str, float]] = None,
@@ -406,6 +433,7 @@ def plot_correlation_heatmap(
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_pair_scatter(panel, matrix: pd.DataFrame, elements: Sequence[str], unit: str, metric: str) -> None:
     clean = [normalize_element_symbol(e) for e in elements if normalize_element_symbol(e)]
     clean = [e for e in clean if e in matrix.columns]
@@ -437,6 +465,7 @@ def plot_pair_scatter(panel, matrix: pd.DataFrame, elements: Sequence[str], unit
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_target_vs_total(panel, data: pd.DataFrame, title: str) -> None:
     required = ["Context_TotalInventory_same_unit", "Target_Inventory_sum", "Units"]
     if data is None or data.empty or any(c not in data for c in required):
@@ -534,6 +563,7 @@ def _square_matrix_from_element_table(square_df: pd.DataFrame) -> Tuple[pd.DataF
     return square_matrix_lookup(square_df)
 
 
+@composable
 def plot_seaborn_lower_triangle_matrix(
     panel, square_df: pd.DataFrame, title: str, cbar_label: str, cmap: str = "vlag",
     center: Optional[float] = 0.0, annotate: bool = False, totals: Optional[pd.DataFrame] = None,
@@ -609,6 +639,7 @@ def plot_seaborn_lower_triangle_matrix(
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_seaborn_top_associations(panel, pair_stats: pd.DataFrame, top_n: int = 30, mode: str = "preferred", color_mode: str = "Basic") -> None:
     """mode: preferred / positive / negative / jaccard -- 4 of the 17 plot types."""
     if not _seaborn_available_or_message(panel):
@@ -656,6 +687,7 @@ def plot_seaborn_top_associations(panel, pair_stats: pd.DataFrame, top_n: int = 
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_seaborn_pair_matrix(
     panel, metric_matrix: pd.DataFrame, raw_matrix: pd.DataFrame, elements: Sequence[str], metric: str,
     kind: str = "regression", max_elements: int = 8, color_mode: str = "Basic",
@@ -739,6 +771,7 @@ def plot_seaborn_pair_matrix(
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_seaborn_joint_first_two(panel, metric_matrix: pd.DataFrame, elements: Sequence[str], metric: str, kind: str = "scatter", color_mode: str = "Basic") -> None:
     """kind: regression / scatter / kde -- 3 of the 17 plot types, first two selected elements only."""
     if not _seaborn_available_or_message(panel):
@@ -784,6 +817,7 @@ def plot_seaborn_joint_first_two(panel, metric_matrix: pd.DataFrame, elements: S
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_seaborn_tank_similarity(panel, tank_similarity: pd.DataFrame, raw_matrix: pd.DataFrame, top_tanks: int = 40, annotate: bool = False, color_mode: str = "Basic") -> None:
     if not _seaborn_available_or_message(panel):
         return
@@ -824,6 +858,7 @@ def plot_seaborn_tank_similarity(panel, tank_similarity: pd.DataFrame, raw_matri
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_seaborn_tank_element_map(panel, raw_matrix: pd.DataFrame, elements: Sequence[str], top_tanks: int = 60, metric: str = "log10_plus1", color_mode: str = "Basic") -> None:
     if not _seaborn_available_or_message(panel):
         return
@@ -861,6 +896,7 @@ def plot_seaborn_tank_element_map(panel, raw_matrix: pd.DataFrame, elements: Seq
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_seaborn_presence_patterns(panel, presence_matrix: pd.DataFrame, elements: Sequence[str], top_n: int = 30, color_mode: str = "Basic") -> None:
     if not _seaborn_available_or_message(panel):
         return
@@ -898,6 +934,7 @@ def plot_seaborn_presence_patterns(panel, presence_matrix: pd.DataFrame, element
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_seaborn_stats_dashboard(panel, element_stats: pd.DataFrame, pair_stats: pd.DataFrame, top_n: int = 20, color_mode: str = "Basic") -> None:
     """4-panel dashboard: total-kg bars, abundance-vs-spread scatter,
     r-vs-Jaccard scatter, top-12 preferred-association bars."""
@@ -957,6 +994,7 @@ def plot_seaborn_stats_dashboard(panel, element_stats: pd.DataFrame, pair_stats:
 # vs-raw correlation comparison, element-association network graph.
 # ---------------------------------------------------------------------------
 
+@composable
 def plot_pca_scatter(panel, tank_summary: pd.DataFrame, color_by: Optional[str], pca_variance: pd.DataFrame, color_mode: str = "Basic") -> None:
     if not _seaborn_available_or_message(panel):
         return
@@ -989,6 +1027,7 @@ def plot_pca_scatter(panel, tank_summary: pd.DataFrame, color_by: Optional[str],
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_dendrogram(panel, cluster_linkage, cluster_labels: Sequence[str], color_mode: str = "Basic") -> None:
     if not _seaborn_available_or_message(panel):
         return
@@ -1014,6 +1053,7 @@ def plot_dendrogram(panel, cluster_linkage, cluster_labels: Sequence[str], color
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_partial_correlation_comparison(panel, partial_df: pd.DataFrame, raw_df: pd.DataFrame, annotate: bool = False, color_mode: str = "Basic") -> None:
     """Raw and partial (controlling for tank size) correlation heatmaps
     side by side, so the size of the "everything correlates because both
@@ -1062,6 +1102,7 @@ def plot_partial_correlation_comparison(panel, partial_df: pd.DataFrame, raw_df:
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_element_network(panel, network_nodes: pd.DataFrame, network_edges: pd.DataFrame, color_mode: str = "Basic") -> None:
     """Element-association network: node position/size come straight from
     structure_science.element_network (a shared spring layout also used by
@@ -1118,6 +1159,7 @@ def plot_element_network(panel, network_nodes: pd.DataFrame, network_edges: pd.D
 # plot_blend_scores.
 # ---------------------------------------------------------------------------
 
+@composable
 def plot_vitrification_burden(panel, data: pd.DataFrame, title: str = "Vitrification screening map") -> None:
     required = ["Total_kg_inventory", "Total_Ci_inventory", "frac_problem_elements_proxy", "frac_glass_former_or_intermediate", "WasteSiteId"]
     if data is None or data.empty or any(c not in data for c in required):
@@ -1148,6 +1190,7 @@ def plot_vitrification_burden(panel, data: pd.DataFrame, title: str = "Vitrifica
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_candidate_scores(panel, data: pd.DataFrame, score_col: str = "User_search_score_proxy", top_n: int = 30) -> None:
     if data is None or data.empty or score_col not in data or "WasteSiteId" not in data:
         panel.show_message("No candidate ranking data")
@@ -1168,6 +1211,7 @@ def plot_candidate_scores(panel, data: pd.DataFrame, score_col: str = "User_sear
     panel.canvas.draw_idle()
 
 
+@composable
 def plot_blend_scores(panel, data: pd.DataFrame, top_n: int = 30) -> None:
     if data is None or data.empty or "Blend_complement_score_proxy" not in data or "PartnerTank" not in data:
         panel.show_message("No blend partner data")

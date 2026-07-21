@@ -11,9 +11,9 @@ from typing import Optional
 
 import pandas as pd
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QSpinBox, QSplitter, QTabWidget, QVBoxLayout,
-    QWidget,
+    QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPushButton, QSpinBox, QSplitter, QTabWidget,
+    QVBoxLayout, QWidget,
 )
 
 import correlation_science as csci
@@ -99,18 +99,18 @@ class QuickScanTab(QWidget):
         self.plot_top_n_spin.setRange(5, 200)
         self.plot_top_n_spin.setValue(30)
         row2.addWidget(self.plot_top_n_spin)
-        scan_btn = QPushButton("Scan target correlations")
-        scan_btn.setObjectName("Primary")
-        scan_btn.clicked.connect(self.run_target_scan)
-        row2.addWidget(scan_btn)
+        self.scan_btn = QPushButton("Scan target correlations")
+        self.scan_btn.setObjectName("Primary")
+        self.scan_btn.clicked.connect(self.run_target_scan)
+        row2.addWidget(self.scan_btn)
         row2.addSpacing(16)
         row2.addWidget(QLabel("Dual/triple elements"))
         self.elements_edit = QLineEdit("Cs, Sr, Tc")
         self.elements_edit.setMaximumWidth(160)
         row2.addWidget(self.elements_edit)
-        selected_btn = QPushButton("Run dual/triple")
-        selected_btn.clicked.connect(self.run_selected)
-        row2.addWidget(selected_btn)
+        self.selected_btn = QPushButton("Run dual/triple")
+        self.selected_btn.clicked.connect(self.run_selected)
+        row2.addWidget(self.selected_btn)
         root.addLayout(row2)
 
         row3 = QHBoxLayout()
@@ -121,9 +121,9 @@ class QuickScanTab(QWidget):
         row3.addWidget(self.heatmap_style_combo)
         self.annotate_check = QCheckBox("annotate r values")
         row3.addWidget(self.annotate_check)
-        heatmap_btn = QPushButton("Correlation heatmap")
-        heatmap_btn.clicked.connect(self.run_heatmap)
-        row3.addWidget(heatmap_btn)
+        self.heatmap_btn = QPushButton("Correlation heatmap")
+        self.heatmap_btn.clicked.connect(self.run_heatmap)
+        row3.addWidget(self.heatmap_btn)
         note = QLabel("Lower triangle only; projection bars are log10(total inventory + 1) in the selected unit.")
         note.setObjectName("SectionNote")
         row3.addWidget(note)
@@ -169,6 +169,9 @@ class QuickScanTab(QWidget):
             QMessageBox.information(self, "Correlations", "Load a dataset first.")
             return
         target = self.target_edit.text().strip()
+        self.scan_btn.setEnabled(False)
+        self.scan_btn.setText("Scanning…")
+        QApplication.processEvents()
         try:
             self._scan_df, self._matrix_df = csci.element_correlation_scan(
                 self.dataset, target, unit=self.unit_combo.currentText(),
@@ -178,8 +181,12 @@ class QuickScanTab(QWidget):
                 control_for_total_inventory=self.control_for_size_check.isChecked(),
             )
         except ValueError as exc:
+            self.scan_btn.setEnabled(True)
+            self.scan_btn.setText("Scan target correlations")
             QMessageBox.warning(self, "Correlation scan failed", str(exc))
             return
+        self.scan_btn.setEnabled(True)
+        self.scan_btn.setText("Scan target correlations")
         self._table_views["Target scan"].set_dataframe(self._scan_df)
         self._table_views["Matrix"].set_dataframe(self._matrix_df)
         ph.plot_correlation_scan(self.plot, self._scan_df, target, top_n=self.plot_top_n_spin.value())
@@ -190,6 +197,9 @@ class QuickScanTab(QWidget):
             QMessageBox.information(self, "Correlations", "Load a dataset first.")
             return
         elements = csci.parse_element_list(self.elements_edit.text())
+        self.selected_btn.setEnabled(False)
+        self.selected_btn.setText("Running…")
+        QApplication.processEvents()
         try:
             self._selected_df, self._joint_df, self._matrix_df = csci.selected_element_correlations(
                 self.dataset, elements, unit=self.unit_combo.currentText(),
@@ -198,8 +208,12 @@ class QuickScanTab(QWidget):
                 control_for_total_inventory=self.control_for_size_check.isChecked(),
             )
         except ValueError as exc:
+            self.selected_btn.setEnabled(True)
+            self.selected_btn.setText("Run dual/triple")
             QMessageBox.warning(self, "Dual/triple correlation failed", str(exc))
             return
+        self.selected_btn.setEnabled(True)
+        self.selected_btn.setText("Run dual/triple")
         self._table_views["Pairs"].set_dataframe(self._selected_df)
         self._table_views["Joint"].set_dataframe(self._joint_df)
         self._table_views["Matrix"].set_dataframe(self._matrix_df)
@@ -211,6 +225,9 @@ class QuickScanTab(QWidget):
             QMessageBox.information(self, "Correlations", "Load a dataset first.")
             return
         unit = self.unit_combo.currentText()
+        self.heatmap_btn.setEnabled(False)
+        self.heatmap_btn.setText("Building heatmap…")
+        QApplication.processEvents()
         self._heatmap_corr_df, self._matrix_df = csci.full_correlation_matrix(
             self.dataset, unit=unit, top_n_elements=self.scan_top_spin.value(),
             value_mode=self.metric_combo.currentText(), method=self.method_combo.currentText(),
@@ -234,6 +251,8 @@ class QuickScanTab(QWidget):
             style=self.heatmap_style_combo.currentText(), totals=totals, unit=unit,
             annotate=self.annotate_check.isChecked(),
         )
+        self.heatmap_btn.setEnabled(True)
+        self.heatmap_btn.setText("Correlation heatmap")
         self.app_window.statusBar().showMessage(
             f"Correlation heatmap built: {len(self._heatmap_corr_df):,} elements, style={self.heatmap_style_combo.currentText()}."
         )

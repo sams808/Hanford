@@ -679,36 +679,55 @@ from Vitrification into one figure.
 
 1. Build any plot you want as a panel, anywhere in Ember.
 2. Click **"→ Figure Composer"** on that plot's toolbar. This captures a
-   high-resolution snapshot of exactly what's currently drawn (so the
-   panel's contents don't change later if you go build something else in
-   the source workspace) and adds it to the Figure Composer's gallery,
-   along with a suggested caption drawn from the plot's own title.
+   *recipe* — which internal plotting function drew it and the exact data/
+   parameters used, not a picture of it — and adds it to the Figure
+   Composer's gallery, along with a suggested caption drawn from the
+   plot's own title.
 3. Repeat for every panel you want in the final figure — from any
    workspace, in any order.
 4. Switch to the **Figure Composer** workspace. The gallery on the left
    lists every captured panel with an editable caption, reorder
    (move up/down) and remove controls.
-5. Set the layout: number of columns (or leave on **auto** to let Ember
+5. With a panel selected, edit its **Title** (or check **Hide** to remove
+   it), **X axis** / **Y axis** label text, and any of its own **Parameters**
+   — a table of every keyword the recipe was captured with (e.g. a
+   heatmap's `style`, `annotate`, `method`; a bar chart's `top_n`,
+   `log_x`). Editing a value re-renders that panel with the new setting;
+   **Reset** clears all parameter overrides back to what was captured.
+   Leaving Title/X axis/Y axis blank keeps whatever the plot itself
+   produces.
+6. Set the layout: number of columns (or leave on **auto** to let Ember
    pick a reasonable grid for however many panels you have), panel-label
    style (`A, B, C`, `a, b, c`, `(a), (b), (c)`, `1, 2, 3`, or **none**),
    and label size.
-6. The preview updates live as you change the gallery or layout.
-7. **Export** at a specific physical size and DPI (PNG/PDF/SVG/TIFF) —
+7. The preview updates live as you change the gallery, a panel's
+   overrides, or the layout.
+8. **Export** at a specific physical size and DPI (PNG/PDF/SVG/TIFF) —
    the same exact-size export path every other plot in Ember uses, so a
    composed figure prints at the size you actually specified, not
-   whatever size happened to be on screen.
+   whatever size happened to be on screen, and stays sharp at any size
+   since every panel is redrawn as real vector artists, not scaled up
+   from a fixed-resolution picture.
 
-Each panel is composited as a high-resolution raster image inside the
-combined figure (not re-plotted from scratch) — this is what lets Figure
-Composer combine *any* plot type, including ones with their own colorbars,
-legends, or seaborn-specific styling, without needing to understand or
-reconstruct each plot's internal structure. Capture each panel at the
-resolution you want in the final figure (the source `PlotWidget`'s own
-toolbar controls the on-screen figure size, and the capture is taken at
-300 DPI regardless of the on-screen zoom level) — recapture (send it to
-the composer again) if you change a source plot's styling, size, or data
-afterward, since the composer holds a snapshot, not a live link back to
-the original.
+Each panel is *redrawn from its recipe* into its own region of the combined
+figure at compose time (not composited as a raster image of what it looked
+like at capture time) — the exact same plotting code that draws it in its
+own workspace runs again here, including its own colorbars, legends, or
+seaborn-specific styling, just placed into one cell of the combined grid
+instead of its own standalone figure. That's what makes every panel's title,
+axis labels, and parameters still editable after capture, and what keeps
+the whole combined figure fully vector (SVG/PDF export contains real paths
+and text, not an embedded picture) — a heatmap panel's own cells still
+render as a raster image internally, exactly as they always have standalone,
+since that's the efficient way to draw many cells; that's unrelated to
+composition and unaffected by any of this.
+
+The underlying *data* a panel was captured with is frozen at capture
+time — recapture (send it to the composer again) if you've since reloaded
+the dataset or want a genuinely different query/selection reflected. Purely
+cosmetic and many display changes (title, axis labels, color mode, style,
+annotate, top-N, and anything else the recipe exposes as a parameter) don't
+require recapturing at all — edit them directly in Figure Composer.
 
 ---
 
@@ -770,10 +789,13 @@ and nothing that should be read as a classification.
   composition (or your edited role table) has no oxide classified as a
   network former, so `T` is zero and the ratio is undefined by
   construction, not a bug.
-- **A Figure Composer panel looks stale after I changed the source plot**
-  — the composer holds a snapshot from when you clicked "→ Figure
-  Composer," not a live link. Remove the old panel and send the plot
-  again after changing it.
+- **A Figure Composer panel looks stale after I changed something in the
+  source workspace** — the composer holds the *data* from when you
+  clicked "→ Figure Composer," not a live link, so a genuinely different
+  query/selection/reload won't show up on its own. Title, axis labels,
+  and any of the panel's own listed Parameters (§13) can be changed
+  directly in Figure Composer without recapturing; for anything else,
+  remove the old panel and send the plot again after changing it.
 
 ---
 

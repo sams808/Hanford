@@ -16,9 +16,11 @@ from PySide6.QtWidgets import (
 
 import overview_science as ov
 from data_model import HanfordDataset
+from plot_helpers import composable
 from qt_widgets import DataFrameTableView, PlotWidget
 
 
+@composable
 def _plot_top_elements(panel: PlotWidget, df: pd.DataFrame, unit_label: str) -> None:
     panel.reset_axes()
     if df.empty:

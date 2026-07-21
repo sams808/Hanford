@@ -15,9 +15,9 @@ from typing import Optional
 
 import pandas as pd
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QSpinBox, QSplitter, QTabWidget, QVBoxLayout,
-    QWidget,
+    QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPushButton, QSpinBox, QSplitter, QTabWidget,
+    QVBoxLayout, QWidget,
 )
 
 import export_utils
@@ -90,10 +90,10 @@ class StructureTab(QWidget):
         self.min_inv_spin.setRange(0.0, 1e12)
         self.min_inv_spin.setDecimals(6)
         row1.addWidget(self.min_inv_spin)
-        build_btn = QPushButton("Build structure data")
-        build_btn.setObjectName("Primary")
-        build_btn.clicked.connect(self.build_data)
-        row1.addWidget(build_btn)
+        self.build_btn = QPushButton("Build structure data")
+        self.build_btn.setObjectName("Primary")
+        self.build_btn.clicked.connect(self.build_data)
+        row1.addWidget(self.build_btn)
         root.addLayout(row1)
 
         row2 = QHBoxLayout()
@@ -186,6 +186,9 @@ class StructureTab(QWidget):
         if self.dataset is None or not self.dataset.is_loaded():
             QMessageBox.information(self, "Structure", "Load a dataset first.")
             return
+        self.build_btn.setEnabled(False)
+        self.build_btn.setText("Building…")
+        QApplication.processEvents()
         try:
             self.results = ssci.structure_workbench(
                 self.dataset, elements_text=self.elements_edit.text(),
@@ -198,8 +201,12 @@ class StructureTab(QWidget):
                 use_partial_for_network=self.use_partial_check.isChecked(),
             )
         except ValueError as exc:
+            self.build_btn.setEnabled(True)
+            self.build_btn.setText("Build structure data")
             QMessageBox.warning(self, "Build failed", str(exc))
             return
+        self.build_btn.setEnabled(True)
+        self.build_btn.setText("Build structure data")
         for title_, key in _TABLE_KEY_BY_TITLE.items():
             value = self.results.get(key, pd.DataFrame())
             self._table_views[title_].set_dataframe(value if isinstance(value, pd.DataFrame) else pd.DataFrame())

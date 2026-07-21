@@ -60,24 +60,6 @@ class TestPlotWidgetAvailableContentHeightInches:
             qtbot.wait(20)  # settle before qtbot's teardown deletes the widget
 
 
-class TestPlotWidgetCapturePng:
-    def test_returns_valid_png_bytes(self, qtbot):
-        panel = PlotWidget()
-        qtbot.addWidget(panel)
-        panel.ax.plot([1, 2, 3], [1, 4, 9])
-        data = panel.capture_png()
-        assert isinstance(data, bytes)
-        assert data[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
-
-    def test_dpi_affects_output_size(self, qtbot):
-        panel = PlotWidget()
-        qtbot.addWidget(panel)
-        panel.ax.plot([1, 2, 3], [1, 4, 9])
-        low = panel.capture_png(dpi=50)
-        high = panel.capture_png(dpi=300)
-        assert len(high) > len(low)
-
-
 class TestPlotWidgetSuggestedCaption:
     def test_uses_axes_title_when_no_suptitle(self, qtbot):
         panel = PlotWidget()
@@ -98,22 +80,39 @@ class TestPlotWidgetSuggestedCaption:
         assert panel.suggested_caption() == ""
 
 
+def _fake_recipe_fn(panel, value):
+    panel.ax.set_title(f"Sent from a test ({value})")
+
+
 class TestPlotWidgetSendToComposer:
-    def test_adds_current_figure_to_the_shared_store(self, qtbot):
+    def test_adds_the_last_recipe_to_the_shared_store(self, qtbot):
         from composer_store import store
         store.clear()
         panel = PlotWidget()
         qtbot.addWidget(panel)
         panel.ax.set_title("Sent from a test")
-        panel.ax.plot([1, 2], [3, 4])
+        panel._set_last_recipe(_fake_recipe_fn, (5,), {})
 
         panel._send_to_composer()
 
         items = store.items()
         assert len(items) == 1
         assert items[0].caption == "Sent from a test"
-        assert items[0].png_bytes[:8] == b"\x89PNG\r\n\x1a\n"
+        assert items[0].render_fn is _fake_recipe_fn
+        assert items[0].render_args == (5,)
         store.clear()
+
+    def test_nothing_to_send_without_a_prior_recipe(self, qtbot):
+        # _prevent_blocking_qt_dialogs (conftest, autouse) makes the
+        # QMessageBox.information fallback resolve without blocking.
+        from composer_store import store
+        store.clear()
+        panel = PlotWidget()
+        qtbot.addWidget(panel)
+
+        panel._send_to_composer()  # no _set_last_recipe call -- must not raise
+
+        assert store.items() == []
 
 
 class TestFormatCell:

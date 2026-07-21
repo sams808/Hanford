@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import pandas as pd
 from PySide6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QPushButton, QSpinBox, QSplitter, QTabWidget, QVBoxLayout, QWidget,
@@ -21,6 +22,16 @@ from data_model import HanfordDataset
 from qt_widgets import DataFrameTableView, PlotWidget
 
 MODES = ["auto", "element", "analyte_exact", "analyte_contains", "regex"]
+
+
+def _unit_suffix(df: Optional[pd.DataFrame]) -> str:
+    """" (kg)" / " (kg, Ci)" from whichever units are actually present in a
+    results table's Units column -- "" for a dimensionless quantity (a
+    fraction/percentage table, or one with no Units column at all)."""
+    if df is None or df.empty or "Units" not in df.columns:
+        return ""
+    units = sorted({str(u) for u in df["Units"].dropna().unique()})
+    return f" ({', '.join(units)})" if units else ""
 PLOT_TYPES = [
     "Target inventory by tank",
     "Target fraction by tank",
@@ -199,26 +210,30 @@ class ExplorerPage(QWidget):
         frac_stats = self._results.get("Composition (fraction)")
 
         if plot_type == "Target inventory by tank":
+            xlabel = (f"Target inventory: {symbol}" if symbol else "Target inventory") + _unit_suffix(target_by_tank)
             ph.plot_barh(self.plot, target_by_tank, "WasteSiteId", "Target_Inventory_sum",
-                         "Target inventory by tank", "Target inventory", top_n=self.top_n_spin.value(),
+                         "Target inventory by tank", xlabel, top_n=self.top_n_spin.value(),
                          highlighted_label=symbol, log_x=True)
         elif plot_type == "Target fraction by tank":
+            xlabel = f"Fraction of tank total: {symbol}" if symbol else "Fraction"
             ph.plot_barh(self.plot, target_by_tank, "WasteSiteId", "TargetFractionOfTankUnitInventory",
-                         "Target fraction of tank total", "Fraction", top_n=self.top_n_spin.value(),
+                         "Target fraction of tank total", xlabel, top_n=self.top_n_spin.value(),
                          highlighted_label=symbol)
         elif plot_type == "Target vs total inventory":
             ph.plot_target_vs_total(self.plot, target_by_tank, "Target vs total tank inventory")
         elif plot_type == "Co-elements inventory":
+            xlabel = "Total inventory" + _unit_suffix(co_el) + (f", tanks containing {symbol}" if symbol else "")
             ph.plot_barh(self.plot, co_el, "Element", "Total_inventory_in_target_tanks",
-                         "Co-elements inventory", "Total inventory", top_n=self.top_n_spin.value(),
+                         "Co-elements inventory", xlabel, top_n=self.top_n_spin.value(),
                          highlighted_label=symbol, log_x=True)
         elif plot_type == "Co-elements presence (%)":
             ph.plot_barh(self.plot, co_el, "Element", "PresenceFraction_pct",
                          "Co-elements presence", "% of target tanks", top_n=self.top_n_spin.value(),
                          highlighted_label=symbol)
         elif plot_type == "Mean absolute composition":
+            xlabel = "Mean inventory (zero-filled)" + _unit_suffix(abs_stats)
             ph.plot_barh(self.plot, abs_stats, "Element", "Mean_inventory_all_target_tanks_zero_filled",
-                         "Mean absolute composition", "Mean inventory (zero-filled)", top_n=self.top_n_spin.value(),
+                         "Mean absolute composition", xlabel, top_n=self.top_n_spin.value(),
                          highlighted_label=symbol, log_x=True)
         elif plot_type == "Mean fraction composition":
             ph.plot_barh(self.plot, frac_stats, "Element", "Mean_fraction_all_target_tanks_zero_filled",

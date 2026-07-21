@@ -10,7 +10,6 @@ workspaces, so this is a genuine, justified addition.
 from __future__ import annotations
 
 from datetime import datetime
-from io import BytesIO
 from typing import Any, Callable, List, Optional
 
 import numpy as np
@@ -41,6 +40,7 @@ class PlotWidget(QWidget):
                  debounce_ms: int = 120):
         super().__init__(parent)
         self._default_figsize = figsize
+        self._last_recipe: Optional[tuple] = None
         self.figure = Figure(figsize=figsize, dpi=dpi)
         self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvasQTAgg(self.figure)
@@ -217,16 +217,6 @@ class PlotWidget(QWidget):
             self.figure.set_size_inches(*old_size)
             self.canvas.draw_idle()
 
-    def capture_png(self, dpi: int = 300) -> bytes:
-        """Renders the current figure to PNG bytes at a fixed DPI,
-        independent of the on-screen zoom/size -- used by "-> Figure
-        Composer" so a panel's resolution in the combined figure doesn't
-        depend on how big the source plot happened to be on screen when
-        captured."""
-        buf = BytesIO()
-        self.figure.savefig(buf, format="png", dpi=dpi, facecolor="white", bbox_inches="tight")
-        return buf.getvalue()
-
     def suggested_caption(self) -> str:
         """The figure's suptitle if it has one (used by the two-marginal-
         bar correlation heatmaps, where an axes-level title would collide
@@ -238,10 +228,24 @@ class PlotWidget(QWidget):
             return self.ax.get_title() or ""
         return ""
 
+    def _set_last_recipe(self, render_fn, args: tuple, kwargs: dict) -> None:
+        """Remembers how this panel's current content was drawn -- the
+        plot_helpers function plus the exact arguments used -- so "-> Figure
+        Composer" can replay the same call later instead of capturing a
+        raster snapshot. Set by plot_helpers.composable-wrapped functions
+        right after they successfully render; never called directly."""
+        self._last_recipe = (render_fn, args, kwargs)
+
     def _send_to_composer(self) -> None:
         from composer_store import store
+        if self._last_recipe is None:
+            QMessageBox.information(
+                self, "Figure Composer", "Nothing to add yet -- run a plot on this panel first.",
+            )
+            return
+        render_fn, args, kwargs = self._last_recipe
         caption = self.suggested_caption()
-        store.add(self.capture_png(), caption, source=caption)
+        store.add_recipe(render_fn, args, kwargs, caption, source=caption)
 
 
 class StatusLogger(QObject):
